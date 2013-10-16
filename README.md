@@ -1,0 +1,1 @@
+This is a renaming script for 3ds Max.
