@@ -6,6 +6,7 @@ struct InteractiveRenamer
 	self,
 	factory,
 	nameplates,
+	nameplatesInList,
 	
 	/**  
 		Will execute a function (e.g. assigning a bitmap to an imgTag) in a gamma-neutral context
@@ -18,6 +19,30 @@ struct InteractiveRenamer
 		fileinGamma = oldGamma
 	)--end fn	
 	,
+-- 	fn setHeaderImage ckb =
+-- 	(
+-- 		token = (filterString ckb.name "_")[2]
+-- 		self.ro.headerImgPth = (getDir #userScripts) + "\\interactiveRenamer\\interactiveRenamer_header_"+token+".png"
+-- 		fileinGammaDecorator (fn setHeaderImg=(self.ro.imgTag_header.bitmap = openBitmap self.ro.headerImgPth))
+-- 	)--end fn
+-- 	,
+-- 	fn colorizeHeaderImage clr mult:1.33 =
+-- 	(
+-- 		-- first reset by getting img from file
+-- 		fileinGammaDecorator (fn setHeaderImg=(self.ro.imgTag_header.bitmap = openBitmap self.ro.headerImgPth))
+-- 				
+-- 		-- then colorize
+-- 		oldBitmap = self.ro.imgTag_header.bitmap
+-- 		newBitmap = BitMap oldBitmap.width oldBitmap.height
+-- 		for row=1 to oldBitmap.height do
+-- 		(
+-- 			pixels = getPixels oldBitmap [0, row] oldBitmap.width
+-- 			newPixels = for p in pixels collect (p*clr*mult)
+-- 			setPixels newBitmap [0, row] newPixels
+-- 		)--end for
+-- 		self.ro.imgTag_header.bitmap = newBitmap
+-- 	)--end fn
+-- 	,
 	fn goToWebsite url =
 	(
 		weHaveInet = internet.CheckConnection url:url force:true
@@ -62,21 +87,21 @@ struct InteractiveRenamer
 	/**
 		Here: needs directory "interactiveRenamer" to already be created! the MZP should do that
 	**/
-	fn save_to_INI=
-	(
-		local pth = (getDir #userscripts) + "\\interactiveRenamer\\\interactiveRenamer.ini"
-		setINISetting pth "Recent Paths" "presets" recentDir
-	)--end fn
-	,
-	fn load_from_INI=
-	(
-		local pth = (getDir #userscripts) + "\\interactiveRenamer\\\interactiveRenamer.ini"
-		if doesFileExist pth do
-		(
-			recentDir = getINISetting pth "Recent Paths" "presets" 
-		)--end if
-	)--end fn
-	,
+-- 	fn save_to_INI=
+-- 	(
+-- 		local pth = (getDir #userscripts) + "\\interactiveRenamer\\\interactiveRenamer.ini"
+-- 		setINISetting pth "Recent Paths" "presets" recentDir
+-- 	)--end fn
+-- 	,
+-- 	fn load_from_INI=
+-- 	(
+-- 		local pth = (getDir #userscripts) + "\\interactiveRenamer\\\interactiveRenamer.ini"
+-- 		if doesFileExist pth do
+-- 		(
+-- 			recentDir = getINISetting pth "Recent Paths" "presets" 
+-- 		)--end if
+-- 	)--end fn
+-- 	,
 	/**
 		Tries to collect all materials that are nested inside a base material recursively.
 		Supports an arbitrary number of materials that can have nested materials inside them
@@ -239,6 +264,10 @@ struct InteractiveRenamer
 		replace first only or all occurences of the search term. It is separated from the initializing
 		function so it can be reused elsewhere.
 	
+		This is quite an abomination as it supports replacing all occurences of a string,
+		which is not possible to do with matchPattern or findString alone, but instead a mixture of both.
+		Also has some code duplication which could probably be refined a lot.
+	
 		/param txt: String
 		/param searchFor: String
 		/param replaceWith: String
@@ -348,12 +377,19 @@ struct InteractiveRenamer
 		)--end if
 	)--end fn
 	,
-	fn constructNewNames nameplates =
+	/**
+		Creates the new names and stores them in the nameplates, but does not assign it to the references.
+		Works only on names that are selected in the listbox, so we can do a selective renaming.
+	**/
+	fn constructNewNames nameplates selectionIndices =
 	(
-		for np in nameplates do
-		(
-			-- reset newName
+		-- reset newName for all first
+		for np in nameplates do 
 			np.newName = np.name
+		
+		for i=1 to nameplates.count where findItem selectionIndices i != 0 do
+		(
+			np = nameplates[i]
 			-- create new newName:
 			if self.ro.chk_base.checked do base np
 			if self.ro.chk_first.checked do remove_first np
@@ -361,13 +397,25 @@ struct InteractiveRenamer
 			if self.ro.chk_prefix.checked do prefix np
 			if self.ro.chk_suffix.checked do suffix np
 			if self.ro.chk_num.checked do numbered nameplates
-			if self.ro.chk_snr.checked do initialize_search_replace np -- this fn does not do the SNR it self, but triggers it
-			
-			print (np.name + "  -->  " + np.newName)
+			if self.ro.chk_snr.checked do initialize_search_replace np -- this fn does not do the SnR it self, but triggers it
 		)--end for
 	)--end fn	
 	,
-	ro = rollout ro "Object Mode" width:896 height:382
+	/**
+		Assigns the newName of the nameplates to its references.
+	**/
+	fn assignNewNames nameplates =
+	(
+		for np in nameplates do
+		(
+			np.assignNameToRef()
+			-- Reset nameplate
+			np.name = np.getNameFromRef()
+			np.newName = np.name
+		)--end for
+	)--end fn
+	,
+	ro = rollout ro "Object Mode" width:896 height:398
 	(
 		/**
 			Reference to parent struct.
@@ -377,59 +425,66 @@ struct InteractiveRenamer
 		local self = undefined
 		
 		local recentDir = "" -- from/to INI to remember last path for file mode
-		local headerImgPth = (getDir #userScripts) + "\\interactiveRenamer\\interactiveRenamer_header03.jpg"
+		local headerImgPth = (getDir #userScripts) + "\\interactiveRenamer\\interactiveRenamer_header.png"
 
 		local clr_objects = (color 50 105 215)
 		local clr_materials = (color 160 60 40)
 		local clr_layers = (color 60 40 160)
 		local clr_files = (color 10 150 50)
+		local clr_assets = (color 150 160 60)
 		
-		checkbox chk_prefix "Prefix: " pos:[11,132] width:56 height:16
-		edittext edt_prefix "" pos:[66,132] width:135 height:16
-		checkbox chk_first "Remove first: " pos:[11,111] width:87 height:16
-		label lbl2 "Digits" pos:[153,112] width:31 height:16
-		checkbox chk_suffix "Suffix: " pos:[11,190] width:54 height:16
-		edittext edt_suffix "" pos:[66,190] width:135 height:16
-		checkbox chk_last "Remove last: " pos:[11,169] width:87 height:16
-		spinner spn_first "" pos:[99,111] width:49 height:16 range:[0,100,0] type:#integer scale:1
-		spinner spn_last "" pos:[99,169] width:49 height:16 range:[0,100,0] type:#integer scale:1
-		label lbl4 "Digits" pos:[153,170] width:31 height:16
-		checkbox chk_num "Numbered: " pos:[11,222] width:73 height:16
-		spinner spn_NumBase "Base: " pos:[117,245] width:73 height:16 range:[0,99999,0] type:#integer scale:1
-		spinner spn_NumStep "Step: " pos:[123,266] width:67 height:16 range:[1,999,1] type:#integer scale:1
-		radiobuttons rdo_num "" pos:[93,223] width:99 height:16 labels:#("lead", "trail") default:2 columns:2
-		checkbox chk_base "Base name: " pos:[11,77] width:79 height:16
-		edittext edt_base "" pos:[89,77] width:112 height:16
-		checkbox chk_snr "Search for: " pos:[11,300] width:77 height:16
-		edittext edt_search "" pos:[89,300] width:112 height:16
-		edittext edt_replace "" pos:[95,322] width:106 height:16
-		label lbl6 "Replace with: " pos:[29,322] width:66 height:16
-		checkbox chk_case "Case sensitive" pos:[27,344] width:90 height:16  
-		checkbox chk_allOcc "All" pos:[121,344] width:40 height:16 
-		button btn_swap " Swap" pos:[161,344] width:40 height:18 
-		checkbutton ckb_objects "Objects" pos:[9,25] width:60 height:38 highlightColor:(color 50 105 215) checked:true 
-		checkbutton ckb_materials "Materials" pos:[73,25] width:60 height:38 highlightColor:(color 160 60 40)
-		checkbutton ckb_layers "Layers" pos:[137,25] width:60 height:38 highlightColor:(color 60 40 160)
-		checkbutton ckb_files "Files" pos:[201,25] width:60 height:38 highlightColor:(color 10 150 50)
-		checkbutton ckb_preview "Preview" pos:[500,358] width:190 height:38 highlightColor:(color 50 105 215) checked:true
-		dotNetControl dn_textbox_folder "TextBox" pos:[268,42] width:519 height:16 
-		button btn_getFiles " ..." pos:[792,41] width:71 height:22 enabled:false toolTip:"LMB: Browse folder, RMB: Open path in windows explorer"
-		button btn_refresh "R" pos:[867,41] width:22 height:22 enabled:false toolTip:"Refresh list" 
-		multiListBox lbx_names "" pos:[210,72] width:674 height:22 readOnly:false 
-		progressBar pb "ProgressBar" pos:[886,71] width:8 height:309 color:(color 255 255 0) orient:#vertical
-		GroupBox grp1 "" pos:[2,66] width:206 height:314
-		GroupBox grp4 "" pos:[2,14] width:893 height:56
-		spinner spn_digits "Digits: " pos:[41,245] width:40 height:16 range:[0,20,3] type:#integer scale:1
-		button btn_rename "Rename" pos:[695,358] width:190 height:22 enabled:true toolTip:"Rename files (old names are lost!)" 
-		radiobuttons rdo_source "" pos:[369,25] width:195 height:16 labels:#("Selected Objects", "Scene") columns:2
-		label lbl_getNames "Get names from: " pos:[275,25] width:82 height:16
-		checkbox chk_nestedMats "Get nested materials" pos:[535,25] width:250 height:16 enabled:false checked:true
-		label lbl_count "" pos:[216,358] width:68 height:16
-		ImgTag imgTag_header "label" pos:[0,0] width:896 height:18
-		checkbutton ckb_sort "Sort" pos:[315,358] width:30 height:16 checked:false visible:true
-		button btn_selAll "All" pos:[349,358] width:30 height:16 visible:true
-		button btn_selNone "None" pos:[383,358] width:35 height:16 visible:true
+		ImgTag imgTag_header "Label" pos:[0,0] width:896 height:18
 		HyperLink hyp_website "www.cbuelter.de" pos:[795,3] width:85 height:16 color:(color 255 255 255) address:"http://www.cbuelter.de"
+		
+		checkbox chk_prefix "Prefix: " pos:[11,127] width:56 height:16
+		edittext edt_prefix "" pos:[66,127] width:135 height:16
+		checkbox chk_first "Remove first: " pos:[11,106] width:87 height:16
+		label lbl2 "Digits" pos:[153,107] width:31 height:16
+		checkbox chk_suffix "Suffix: " pos:[11,185] width:54 height:16
+		edittext edt_suffix "" pos:[66,185] width:135 height:16
+		checkbox chk_last "Remove last: " pos:[11,164] width:87 height:16
+		spinner spn_first "" pos:[99,106] width:49 height:16 range:[0,100,0] type:#integer scale:1
+		spinner spn_last "" pos:[99,164] width:49 height:16 range:[0,100,0] type:#integer scale:1
+		label lbl4 "Digits" pos:[153,165] width:31 height:16
+		checkbox chk_num "Numbered: " pos:[11,217] width:73 height:16
+		spinner spn_NumBase "Base: " pos:[117,240] width:73 height:16 range:[0,99999,0] type:#integer scale:1
+		spinner spn_NumStep "Step: " pos:[123,261] width:67 height:16 range:[1,999,1] type:#integer scale:1
+		radiobuttons rdo_num "" pos:[93,218] width:99 height:16 labels:#("lead", "trail") default:2 columns:2
+		checkbox chk_base "Base name: " pos:[11,72] width:79 height:16
+		edittext edt_base "" pos:[89,72] width:112 height:16
+		checkbox chk_snr "Search for: " pos:[11,295] width:77 height:16
+		edittext edt_search "" pos:[89,295] width:112 height:16
+		edittext edt_replace "" pos:[95,317] width:106 height:16
+		label lbl6 "Replace with: " pos:[29,317] width:66 height:16
+		checkbox chk_case "Case sensitive" pos:[27,339] width:90 height:16  
+		checkbox chk_allOcc "All" pos:[121,339] width:40 height:16 
+		button btn_swap " Swap" pos:[161,339] width:40 height:18 
+		spinner spn_digits "Digits: " pos:[41,240] width:40 height:16 range:[0,20,3] type:#integer scale:1
+		
+		checkbutton ckb_objects "Objects" pos:[9,25] width:60 height:38 highlightColor:clr_objects checked:true 
+		checkbutton ckb_materials "Materials" pos:[73,25] width:60 height:38 highlightColor:clr_materials
+		checkbutton ckb_layers "Layers" pos:[137,25] width:60 height:38 highlightColor:clr_layers
+		checkbutton ckb_files "Files" pos:[265,25] width:60 height:38 highlightColor:clr_files
+		checkbutton ckb_assets "Assets" pos:[201,25] width:60 height:38 highlightColor:clr_assets
+		
+		dotNetControl dn_textbox_folder "TextBox" pos:[333,41] width:454 height:16 
+		label lbl_getNames "Get names from: " pos:[334,24] width:82 height:16
+		checkbox chk_nestedMats "Get nested materials" pos:[600,24] width:250 height:16 enabled:false checked:true
+		radiobuttons rdo_source "" pos:[426,24] width:195 height:16 labels:#("Selected Objects", "Scene") columns:2
+		button btn_getFiles " ..." pos:[792,40] width:71 height:22 enabled:false toolTip:"LMB: Browse folder, RMB: Open path in windows explorer"
+		button btn_refresh "R" pos:[867,40] width:22 height:22 enabled:false toolTip:"Refresh list" 
+		
+		multiListBox lbx_names "" pos:[210,72] width:674 height:22 readOnly:false 
+		progressBar pb "ProgressBar" pos:[886,71] width:8 height:294 color:(color 255 255 0) orient:#vertical
+		
+		checkbutton ckb_sort "Sort" pos:[211,370] width:45 height:24 checked:false visible:true
+		button btn_selAll "All" pos:[260,370] width:45 height:24 visible:true
+		button btn_selNone "None" pos:[309,370] width:45 height:24 visible:true
+		edittext edt_filter "Filter:" pos:[361,374] width:100 height:18
+		label lbl_count "" pos:[467,376] width:60 height:16
+		
+		button btn_rename "Rename" pos:[695,370] width:190 height:24 enabled:true toolTip:"Rename files (old filenames are lost!)" 
+		checkbutton ckb_preview "Preview" pos:[532,370] width:160 height:24 highlightColor:clr_objects checked:true
 		
 		/**
 			Methods here should only deal with UI events and stuff like that.
@@ -444,33 +499,63 @@ struct InteractiveRenamer
 			ckb.caption = temp
 		)--end fn
 		
+		fn passesFilter nameplate filtertxt =
+		(
+			if findString nameplate.name filtertxt != undefined or filtertxt == "" then True	
+			else False
+		)--end fn
+		
+		fn updateNestedMatsCheckbox =
+		(
+			if ckb_materials.checked do
+			(
+				if rdo_source.state == 1 then
+					chk_nestedMats.enabled = True
+				else
+					chk_nestedMats.enabled = False
+			)--end if
+		)--end fn
+		
 		fn updateCheckbuttons ckb =
 		(
 			case ckb of
 			( 
 				(ckb_Objects): 
 				(
-					ckb_Materials.checked=False; ckb_Layers.checked=False; ckb_Files.checked=False
+					ckb_Materials.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
 					rdo_source.enabled=True; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
-					ckbForceColorUpdate ckb_preview clr_objects; 
+					ckbForceColorUpdate ckb_preview clr_objects; ckbForceColorUpdate ckb_sort clr_objects;
+					self.ro.title = "Object Mode"
 				)
 				(ckb_Materials): 
 				(
-					ckb_Objects.checked=False; ckb_Layers.checked=False; ckb_Files.checked=False
+					ckb_Objects.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
 					rdo_source.enabled=True; chk_nestedMats.enabled=True; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
-					ckbForceColorUpdate ckb_preview clr_materials; 
+					ckbForceColorUpdate ckb_preview clr_materials; ckbForceColorUpdate ckb_sort clr_materials; 
+					self.ro.title = "Material Mode"
+					
+					updateNestedMatsCheckbox()
 				)
 				(ckb_Layers): 
 				(
-					ckb_Materials.checked=False; ckb_Objects.checked=False; ckb_Files.checked=False
+					ckb_Materials.checked=False; ckb_Objects.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
+					rdo_source.enabled=True; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
+					ckbForceColorUpdate ckb_preview clr_layers; ckbForceColorUpdate ckb_sort clr_layers; 
+					self.ro.title = "Layer Mode"
+				)
+				(ckb_Assets): 
+				(
+					ckb_Materials.checked=False; ckb_Objects.checked=False; ckb_Layers.checked=False; ckb_Files.checked=False
 					rdo_source.enabled=False; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
-					ckbForceColorUpdate ckb_preview clr_layers; 
+					ckbForceColorUpdate ckb_preview clr_assets; ckbForceColorUpdate ckb_sort clr_assets; 
+					self.ro.title = "Asset Mode"
 				)
 				(ckb_Files): 
 				(
-					ckb_Materials.checked=False; ckb_Layers.checked=False; ckb_Objects.checked=False
+					ckb_Materials.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Objects.checked=False
 					rdo_source.enabled=False; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=True; btn_getFiles.enabled=True; btn_refresh.enabled=True
-					ckbForceColorUpdate ckb_preview clr_files; 
+					ckbForceColorUpdate ckb_preview clr_files; ckbForceColorUpdate ckb_sort clr_files; 
+					self.ro.title = "File Mode"
 				)
 			)--end case
 		)--end fn
@@ -481,11 +566,11 @@ struct InteractiveRenamer
 			case of
 			(
 				(ckb_Objects.checked): self.factory = NameplateFactory type:"objects" mode:mode
-				(ckb_Materials.checked): self.factory = NameplateFactory type:"materials" mode:mode
+				(ckb_Materials.checked): self.factory = NameplateFactory type:"materials" mode:mode nested:chk_nestedMats.checked
 				(ckb_Layers.checked): self.factory = NameplateFactory type:"layers" mode:mode
+				(ckb_Assets.checked): self.factory = NameplateFactory type:"assets" mode:mode
 				(ckb_Files.checked): self.factory = NameplateFactory type:"files" mode:mode
 			)--end case
-			print self.factory
 		)--end fn
 		
 		fn updateNameplates =
@@ -494,33 +579,57 @@ struct InteractiveRenamer
 			self.nameplates = self.factory.buildNameplates()
 		)--end fn
 		
-		fn updateList =
+		fn updateRenameButton =
 		(
-			names = for np in self.nameplates collect np.name
-			lbx_names.items = names 
+			if self.nameplates.count != 0 and self.nameplatesInList != 0 and not lbx_names.selection.isEmpty then
+				btn_rename.enabled=True
+			else
+				btn_rename.enabled=False
 		)--end fn
 		
-		fn updateGui =
+		/**
+			Does all the sorting, filtering and previewing to display nameplates in the listbox.
+		**/
+		fn updateList =
+		(
+			self.nameplatesInList = for np in self.nameplates where passesFilter np edt_filter.text collect np
+			if ckb_sort.checked do	
+				qsort self.nameplatesInList self.sortByName
+			
+			if ckb_preview.checked then
+			(
+				self.constructNewNames self.nameplatesInList lbx_names.selection
+				namelist = for np in self.nameplatesInList collect np.newName
+			)
+			else
+				namelist = for np in self.nameplatesInList collect np.name
+			
+			lbx_names.items = namelist
+			lbl_count.text = namelist.count as String + " found"
+			updateRenameButton()
+		)--end fn
+		
+		fn updateAll =
 		(
 			updateFactory()
 			updateNameplates()
 			updateList()
+			updateNestedMatsCheckbox()
 		)--end fn
-		
 
-		-- this fn replaces the "on open do" handler and is responsible to make the rollout aware of the struct instance
+		-- This fn replaces the "on open do" handler and is responsible to make the rollout aware of the struct instance.
 		fn init pself = 
 		(
 			self = pself
 			-- when assigning the header image, make sure to set gamma to 1.0 first and reset afterwards
 			self.fileinGammaDecorator (fn setHeaderImg=(imgTag_header.bitmap = openBitmap headerImgPth))
-			updateGui()
+				
+			updateAll()
 		)--end fn
 		
 		/**
 			Event handlers
 		**/
-		
 		on ro close do self.close()
 		
 		on ckb_objects changed state do
@@ -528,7 +637,7 @@ struct InteractiveRenamer
 			if state then
 			(
 				updateCheckbuttons ckb_objects
-				updateGui()
+				updateAll()
 			)
 			else ckb_objects.checked=True
 		)--end on
@@ -538,7 +647,7 @@ struct InteractiveRenamer
 			if state then
 			(
 				updateCheckbuttons ckb_materials
-				updateGui()
+				updateAll()
 			)
 			else ckb_materials.checked=True
 		)--end on
@@ -548,9 +657,19 @@ struct InteractiveRenamer
 			if state then
 			(
 				updateCheckbuttons ckb_layers
-				updateGui()
+				updateAll()
 			)
 			else ckb_layers.checked=True
+		)--end on
+		
+		on ckb_assets changed state do
+		(
+			if state then
+			(
+				updateCheckbuttons ckb_assets
+				updateAll()
+			)
+			else ckb_assets.checked=True
 		)--end on
 		
 		on ckb_files changed state do
@@ -558,22 +677,76 @@ struct InteractiveRenamer
 			if state then
 			(
 				updateCheckbuttons ckb_files
-				updateGui()
+				updateAll()
 			)
 			else ckb_files.checked=True
 		)--end on
-		
-		on rdo_source changed state do
-		(
-			updateGui()
-		)--end on
-		
+				
 		on btn_rename pressed do 
 		(			
-			self.constructNewNames self.nameplates
+			self.constructNewNames self.nameplates lbx_names.selection
+			self.assignNewNames self.nameplates
+			
+			-- for some reason assets need to be updated manually to show correctly in the list
+			if ckb_assets.checked do
+				updateNameplates()
+			
 			updateList()
 		)--end on
+		
+		on btn_selAll pressed do 
+		(
+			lbx_names.selection = #all
+			updateList()
+		)--end on
+		
+		on btn_selNone pressed do 
+		(
+			lbx_names.selection = #none			
+			updateList()
+		)--end on
+		
+		on btn_swap pressed do
+		(
+			temp = edt_search.text
+			edt_search.text = edt_replace.text
+			edt_replace.text = temp
+			updateList()
+		)--end on
+				
+		on chk_nestedMats changed state do updateAll()
+		on lbx_names selectionEnd do updateList()
+		on ckb_preview changed state do updateList()
+		on ckb_sort changed state do updateList()
+		on rdo_source changed state do updateAll()
+		on edt_filter changed txt do updateList()
+		
+		/**
+			These event handlers trigger the preview whenever renaming GUI element is changed.
+		**/
+		on edt_prefix changed txt do updateList()
+		on edt_suffix changed txt do updateList()
+		on edt_search changed txt do updateList()
+		on edt_replace changed txt do updateList()
+		on edt_base changed txt do updateList()
+			
+		on spn_first changed val do updateList()
+		on spn_last changed val do updateList()
+		on spn_NumBase changed val do updateList()
+		on spn_NumStep changed val do updateList()
+		on spn_digits changed val do updateList()
 
+		on chk_base changed state do updateList()
+		on chk_case changed state do updateList()
+		on chk_allOcc changed state do updateList()
+		on chk_snr changed state do updateList()
+		on chk_num changed state do updateList()
+		on chk_last changed state do updateList()
+		on chk_suffix changed state do updateList()
+		on chk_prefix changed state do updateList()
+		on chk_first changed state do updateList()
+		
+		on rdo_num changed state do	updateList()
 	)--end rollout
 	,
 	fn show = 
@@ -596,6 +769,6 @@ struct InteractiveRenamer
 
 -- Execute script -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 try(gInteractiveRenamer.close())catch()
-gInteractiveRenamer = InteractiveRenamer()
+global gInteractiveRenamer = InteractiveRenamer()
 gInteractiveRenamer.self = gInteractiveRenamer
 gInteractiveRenamer.show()

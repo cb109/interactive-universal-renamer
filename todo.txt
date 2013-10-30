@@ -1,0 +1,17 @@
+fix numbered bug
+regex snr
+doubleclick manual rename single item
+assets
+files renaming reflected in assets, asset renaming reflected in files
+###selected only
+###sorting
+###get layers from selected objects
+###filterbox for names?
+GUI remembering settings from session to session
+dotnet autocompletion box
+selectionSetChanged callback
+###colored header images
+file mode functionality
+
+UPDATE LISTS AFTER RENAMING! (ASSETS?)
+TESTING!!

@@ -10,7 +10,7 @@ struct AbstractNameplate
 	newName, 
 	ref, 
 	fn getNameFromRef=(), 
-	fn setRefName=()
+	fn assignNameToRef=()
 )--end struct
 
 struct ObjectNameplate
@@ -22,10 +22,10 @@ struct ObjectNameplate
 
 	fn getNameFromRef =
 	(
-		name = ref.name
+		name = newName = ref.name
 	),
 
-	fn setRefName = 
+	fn assignNameToRef = 
 	(
 		ref.name = newName
 	)
@@ -40,10 +40,10 @@ struct MaterialNameplate
 
 	fn getNameFromRef =
 	(
-		name = ref.name
+		name = newName = ref.name
 	),
 
-	fn setRefName = 
+	fn assignNameToRef = 
 	(
 		ref.name = newName
 	)
@@ -58,10 +58,10 @@ struct LayerNameplate
 
 	fn getNameFromRef =
 	(
-		name = ref.name
+		name = newName = ref.name
 	),
 
-	fn setRefName = 
+	fn assignNameToRef = 
 	(
 		local layManClosed = false
 		if (LayerManager.isDialogOpen()) do -- if open, close to make changes committ
@@ -75,6 +75,26 @@ struct LayerNameplate
 	)
 )--end struct
 
+struct AssetNameplate
+(
+	id = undefined,
+	name = undefined,
+	newName = undefined,
+	ref = undefined,
+	
+	fn getNameFromRef = 
+	(
+		name = newName = ref
+	), 
+	
+	fn assignNameToRef = 
+	(
+		ATSOps.ClearSelection()
+		ATSOps.SelectFiles #(name)
+		ATSOps.RetargetSelection newName
+	)
+)--end struct
+
 struct FileNameplate
 (
 	id = undefined,
@@ -84,10 +104,10 @@ struct FileNameplate
 
 	fn getNameFromRef =
 	(
-		name = getFileNameFile ref
+		name = newName = getFileNameFile ref
 	),
 
-	fn setRefName = 
+	fn assignNameToRef = 
 	(
 		newFileName = newName + (getFileNameType ref)
 		HiddenDOSCommand ("rename " + "\"" + ref + "\"" + " " + "\"" + newFileName + "\"") --quot marks are needed for paths with blank spaces
@@ -111,6 +131,7 @@ struct AbstractNameplateFactory
 		fn collectObjectRefs=()
 		fn collectMaterialRefs=()
 		fn collectLayerRefs=()
+		fn collectAssetRefs=()
 		fn collectFileRefs=()
 	),
 	fn buildNameplates=()
@@ -118,11 +139,11 @@ struct AbstractNameplateFactory
 
 struct NameplateFactory
 (
-	type = undefined, -- "objects", "materials", "layers", "files"
+	type = undefined, -- "objects", "materials", "layers", "assets", "files"
 	mode = undefined, -- "selection" or "scene"
 	refs = #(), -- node references
 	
-	nested = true, -- only for materials mode. if true, get nested materials
+	nested = false, -- only for materials mode. if true, get nested materials
 	dir = "", -- only for files mode. get all files from this folder as refs
 
 	fn collectRefs =
@@ -150,7 +171,8 @@ struct NameplateFactory
 					(
 						if nested then -- get all nested materials as well
 						(
-							HelperFunctions.getNestedMaterialsRecursive s.material refs
+							-- Referring to global accessor of script here; maybe move function to this file
+							gInteractiveRenamer.getNestedMaterialsRecursive s.material refs
 						)
 						else -- only get base materials
 						(
@@ -175,7 +197,18 @@ struct NameplateFactory
 		fn collectLayerRefs =
 		(
 			refs = #()
-			refs = for i=0 to (LayerManager.count-1) collect (LayerManager.getLayer i)
+			case mode of
+			(
+				"selection": for s in selection do appendIfUnique refs (LayerManager.getLayerFromName s.layer.name)
+				"scene": refs = for i=0 to (LayerManager.count-1) collect (LayerManager.getLayer i)
+			)--end case
+			refs -- return
+		)--end fn
+		
+		fn collectAssetRefs =
+		(
+			refs = #()
+			ATSOps.GetFiles &refs
 			refs -- return
 		)--end fn
 
@@ -193,6 +226,7 @@ struct NameplateFactory
 			"objects": refs = collectObjectRefs()
 			"materials": refs = collectMaterialRefs()
 			"layers": refs = collectLayerRefs()
+			"assets": refs = collectAssetRefs()
 			"files": refs = collectFileRefs()
 		)--end case
 		refs -- return
@@ -211,6 +245,7 @@ struct NameplateFactory
 				"objects": np = (ObjectNameplate id:id name:"" newName:"" ref:ref)
 				"materials": np = (MaterialNameplate id:id name:"" newName:"" ref:ref)
 				"layers": np = (LayerNameplate id:id name:"" newName:"" ref:ref)
+				"assets": np = (AssetNameplate id:id name:"" newName:"" ref:ref)
 				"files": np = (FileNameplate id:id name:"" newName:"" ref:ref)
 			)--end case
 			np.getNameFromRef()
