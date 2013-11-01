@@ -19,13 +19,13 @@ struct InteractiveRenamer
 		fileinGamma = oldGamma
 	)--end fn	
 	,
--- 	fn setHeaderImage ckb =
--- 	(
--- 		token = (filterString ckb.name "_")[2]
--- 		self.ro.headerImgPth = (getDir #userScripts) + "\\interactiveRenamer\\interactiveRenamer_header_"+token+".png"
--- 		fileinGammaDecorator (fn setHeaderImg=(self.ro.imgTag_header.bitmap = openBitmap self.ro.headerImgPth))
--- 	)--end fn
--- 	,
+	fn setHeaderImage ckb =
+	(
+		token = (filterString ckb.name "_")[2]
+		self.ro.headerImgPth = (getDir #userScripts) + "\\interactiveRenamer\\interactiveRenamer_header_"+token+".png"
+		fileinGammaDecorator (fn setHeaderImg=(self.ro.imgTag_header.bitmap = openBitmap self.ro.headerImgPth))
+	)--end fn
+	,
 -- 	fn colorizeHeaderImage clr mult:1.33 =
 -- 	(
 -- 		-- first reset by getting img from file
@@ -415,8 +415,51 @@ struct InteractiveRenamer
 		)--end for
 	)--end fn
 	,
-	ro = rollout ro "Object Mode" width:896 height:398
+	/**
+		Meant for quick changes on single names that dont fit a certain pattern for mass renaming.
+		Triggered by doubleclicking an item in list.
+	**/
+	fn quickSingleRename np =
 	(
+		try(destroyDialog ro_quickSingleRename)catch()
+		rollout ro_quickSingleRename ("Manual rename:") width:284 height:53
+		(				
+			local self = undefined
+			local np = undefined
+			
+			edittext edt_name "" pos:[0,4] width:279 height:16
+			button btn_ok "OK" pos:[143,26] width:66 height:22
+			button btn_cancel "Cancel" pos:[214,26] width:66 height:22
+			
+			on btn_ok pressed do
+			(
+				if edt_name.text != np.name do
+				(
+					np.newName = edt_name.text
+					self.assignNewNames #(np)
+					self.ro.updateList()
+				)--end if
+				destroyDialog ro_quickSingleRename
+			)--end on
+			on btn_cancel pressed do
+			(
+				destroyDialog ro_quickSingleRename
+			)--end on
+		)
+		createDialog ro_quickSingleRename 284 53 (mouse.screenpos.x - 42) (mouse.screenpos.y - 30) style:#(#style_titlebar, #style_border, #style_sysmenu, #style_toolwindow)
+
+		-- Hacky way to set focus when the dialog opens up
+		setFocus ro_quickSingleRename.edt_name
+		ro_quickSingleRename.edt_name.text = " " -- pass nonsense so the next pass is a change, which enables the "entered" event
+		ro_quickSingleRename.edt_name.text = np.name -- pass old name for editing
+		-- Pass references to rollout
+		ro_quickSingleRename.self = self
+		ro_quickSingleRename.np = np
+	)--end fn
+	,
+	ro = rollout ro "There should be a mode header in here, not this text" width:896 height:398
+	(
+		
 		/**
 			Reference to parent struct.
 			Assign after rollout creation (init) to use parent methods in UI events!
@@ -427,11 +470,11 @@ struct InteractiveRenamer
 		local recentDir = "" -- from/to INI to remember last path for file mode
 		local headerImgPth = (getDir #userScripts) + "\\interactiveRenamer\\interactiveRenamer_header.png"
 
-		local clr_objects = (color 50 105 215)
-		local clr_materials = (color 160 60 40)
-		local clr_layers = (color 60 40 160)
-		local clr_files = (color 10 150 50)
-		local clr_assets = (color 150 160 60)
+		local clr_objects = color 50 105 215
+		local clr_materials = color 160 60 40
+		local clr_layers = color 60 40 160
+		local clr_files = color 10 150 50
+		local clr_assets = color 150 160 60
 		
 		ImgTag imgTag_header "Label" pos:[0,0] width:896 height:18
 		HyperLink hyp_website "www.cbuelter.de" pos:[795,3] width:85 height:16 color:(color 255 255 255) address:"http://www.cbuelter.de"
@@ -467,12 +510,13 @@ struct InteractiveRenamer
 		checkbutton ckb_files "Files" pos:[265,25] width:60 height:38 highlightColor:clr_files
 		checkbutton ckb_assets "Assets" pos:[201,25] width:60 height:38 highlightColor:clr_assets
 		
+-- 		edittext dn_textbox_folder "" pos:[333,41] width:454 height:16 
 		dotNetControl dn_textbox_folder "TextBox" pos:[333,41] width:454 height:16 
 		label lbl_getNames "Get names from: " pos:[334,24] width:82 height:16
-		checkbox chk_nestedMats "Get nested materials" pos:[600,24] width:250 height:16 enabled:false checked:true
+		checkbox chk_nestedMats "Get nested materials" pos:[600,24] width:250 height:16 checked:true
 		radiobuttons rdo_source "" pos:[426,24] width:195 height:16 labels:#("Selected Objects", "Scene") columns:2
-		button btn_getFiles " ..." pos:[792,40] width:71 height:22 enabled:false toolTip:"LMB: Browse folder, RMB: Open path in windows explorer"
-		button btn_refresh "R" pos:[867,40] width:22 height:22 enabled:false toolTip:"Refresh list" 
+		button btn_getFiles " ..." pos:[792,40] width:71 height:22 toolTip:"LMB: Browse folder, RMB: Open path in windows explorer"
+		button btn_refresh "R" pos:[867,40] width:22 height:22 toolTip:"Refresh list" 
 		
 		multiListBox lbx_names "" pos:[210,72] width:674 height:22 readOnly:false 
 		progressBar pb "ProgressBar" pos:[886,71] width:8 height:294 color:(color 255 255 0) orient:#vertical
@@ -490,6 +534,16 @@ struct InteractiveRenamer
 			Methods here should only deal with UI events and stuff like that.
 			Core functionality lies in the parent struct (self).
 		**/
+		fn registerCallbacks =
+		(
+			callbacks.removeScripts id:#interactiveRenamer
+			callbacks.addscript #selectionSetChanged "gInteractiveRenamer.ro.updateAll()" id:#interactiveRenamer
+		)--end fn
+		
+		fn unregisterCallbacks =
+		(
+			callbacks.removeScripts id:#interactiveRenamer
+		)--end fn
 		
 		fn ckbForceColorUpdate ckb clr =
 		(
@@ -518,19 +572,20 @@ struct InteractiveRenamer
 		
 		fn updateCheckbuttons ckb =
 		(
+-- 			self.setHeaderImage ckb
 			case ckb of
 			( 
 				(ckb_Objects): 
 				(
 					ckb_Materials.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
-					rdo_source.enabled=True; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
+					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
 					ckbForceColorUpdate ckb_preview clr_objects; ckbForceColorUpdate ckb_sort clr_objects;
 					self.ro.title = "Object Mode"
 				)
 				(ckb_Materials): 
 				(
 					ckb_Objects.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
-					rdo_source.enabled=True; chk_nestedMats.enabled=True; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
+					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedMats.enabled=True; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
 					ckbForceColorUpdate ckb_preview clr_materials; ckbForceColorUpdate ckb_sort clr_materials; 
 					self.ro.title = "Material Mode"
 					
@@ -539,21 +594,21 @@ struct InteractiveRenamer
 				(ckb_Layers): 
 				(
 					ckb_Materials.checked=False; ckb_Objects.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
-					rdo_source.enabled=True; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
+					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
 					ckbForceColorUpdate ckb_preview clr_layers; ckbForceColorUpdate ckb_sort clr_layers; 
 					self.ro.title = "Layer Mode"
 				)
 				(ckb_Assets): 
 				(
 					ckb_Materials.checked=False; ckb_Objects.checked=False; ckb_Layers.checked=False; ckb_Files.checked=False
-					rdo_source.enabled=False; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
+					lbl_getNames.enabled=False; rdo_source.enabled=False; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
 					ckbForceColorUpdate ckb_preview clr_assets; ckbForceColorUpdate ckb_sort clr_assets; 
 					self.ro.title = "Asset Mode"
 				)
 				(ckb_Files): 
 				(
 					ckb_Materials.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Objects.checked=False
-					rdo_source.enabled=False; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=True; btn_getFiles.enabled=True; btn_refresh.enabled=True
+					lbl_getNames.enabled=False; rdo_source.enabled=False; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=True; btn_getFiles.enabled=True; btn_refresh.enabled=True
 					ckbForceColorUpdate ckb_preview clr_files; ckbForceColorUpdate ckb_sort clr_files; 
 					self.ro.title = "File Mode"
 				)
@@ -624,6 +679,8 @@ struct InteractiveRenamer
 			-- when assigning the header image, make sure to set gamma to 1.0 first and reset afterwards
 			self.fileinGammaDecorator (fn setHeaderImg=(imgTag_header.bitmap = openBitmap headerImgPth))
 				
+			updateCheckbuttons ckb_objects -- hides/enables other gui stuff
+			if rdo_source.state == 1 do registerCallbacks()
 			updateAll()
 		)--end fn
 		
@@ -714,11 +771,23 @@ struct InteractiveRenamer
 			updateList()
 		)--end on
 				
-		on chk_nestedMats changed state do updateAll()
+		on lbx_names doubleclicked idx do 
+		(
+			self.quickSingleRename self.nameplatesInList[idx]
+		)--end on
+		
 		on lbx_names selectionEnd do updateList()
+		on chk_nestedMats changed state do updateAll()
 		on ckb_preview changed state do updateList()
 		on ckb_sort changed state do updateList()
-		on rdo_source changed state do updateAll()
+		on rdo_source changed state do 
+		(
+			if state == 1 then
+				registerCallbacks()
+			else
+				unregisterCallbacks()
+			updateAll()
+		)--end on
 		on edt_filter changed txt do updateList()
 		
 		/**
@@ -754,11 +823,12 @@ struct InteractiveRenamer
 		createDialog ro
 		ro.init self
 		-- for some reason we must set it here, setting it as default in the rollout would disable it forever
-		ro.dn_textbox_folder.enabled = False
+-- 		ro.dn_textbox_folder.enabled = False
 	)--end fn
 	,
 	fn close = 
 	(
+		ro.unregisterCallbacks()
 		try
 		(
 			destroyDialog ro
