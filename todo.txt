@@ -1,4 +1,4 @@
-fix numbered bug
+###fix numbered bug
 regex snr
 ###doubleclick manual rename single item
 ###assets
@@ -10,8 +10,19 @@ files renaming reflected in assets, asset renaming reflected in files
 GUI remembering settings from session to session
 dotnet autocompletion box
 ###selectionSetChanged callback
+###callback only update when in correct mode (objects)
 ###colored header images
 file mode functionality
 
-UPDATE LISTS AFTER RENAMING! (ASSETS?)
+numbering: optionally by selection order in list?
+
+###progressbar update in mode color
+
+use ENTER in manual rename
+use CTRL+A in list
+
+file mode list update bug when using filter?
+--> when applying filter, keeps old item selected and renames it
+
+###UPDATE LISTS AFTER RENAMING! (ASSETS?)
 TESTING!!

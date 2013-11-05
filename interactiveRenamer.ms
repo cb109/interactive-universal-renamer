@@ -5,8 +5,8 @@ struct InteractiveRenamer
 	version = 2.0,
 	self,
 	factory,
-	nameplates,
-	nameplatesInList,
+	nameplates, -- All nameplates that fit the mode and source
+	nameplatesInList, -- Nameplates that match the filter and are sorted -> renaming is done on these!
 	
 	/**  
 		Will execute a function (e.g. assigning a bitmap to an imgTag) in a gamma-neutral context
@@ -234,29 +234,23 @@ struct InteractiveRenamer
 	)--end fn
 	,
 	/**
-	FIXME: MAKE IT WORK ON SELECTED ONLY -- hand another array to the fn!
-		Adds / appends a numbering to a list of names, with the option to change the base and step values
-		CURRENTLY WORKS DIRECTLY ON THE nameplates ARRAY OF THE STRUCT
+		Prepends / appends a numbering to a list of names.
 	**/
-	fn numbered npArray =
+	fn numbered np idx =
 	(
 		local step = self.ro.spn_numStep.value
 		local nr = self.ro.spn_numBase.value - step
-		for i=1 to npArray.count do
-		(
-			--iterate nr
-			nr = (nr as Integer) + step
-			--prefix zeros
-			nrStr = ""
-			for j = ((nr as String).count + 1) to self.ro.spn_digits.value do
-				nrStr += "0"
-			nrStr += nr as String
-			
-			if self.ro.rdo_num.state == 2 then --trailing number
-				npArray[i].newName = npArray[i].newName + nrStr
-			else --leading number
-				npArray[i].newName = nrStr + npArray[i].newName
-		)--end for
+		nr = nr + step * idx
+		nrStr = ""
+		-- Add padding:
+		for j = ((nr as String).count + 1) to self.ro.spn_digits.value do
+			nrStr += "0"
+		nrStr += nr as String
+		
+		if self.ro.rdo_num.state == 2 then --trailing number
+			np.newName = np.newName + nrStr
+		else --leading number
+			np.newName = nrStr + np.newName
 	)--end fn
 	,
 	/**
@@ -377,26 +371,27 @@ struct InteractiveRenamer
 		)--end if
 	)--end fn
 	,
+	fn getSelectedNameplates nameplates selectionIndices =
+	(
+		selectedNameplates = for i=1 to nameplates.count where findItem selectionIndices i != 0 collect nameplates[i]
+		selectedNameplates -- return
+	)--end fn
+	,
 	/**
 		Creates the new names and stores them in the nameplates, but does not assign it to the references.
 		Works only on names that are selected in the listbox, so we can do a selective renaming.
 	**/
-	fn constructNewNames nameplates selectionIndices =
+	fn constructNewNames nameplates =
 	(
-		-- reset newName for all first
-		for np in nameplates do 
-			np.newName = np.name
-		
-		for i=1 to nameplates.count where findItem selectionIndices i != 0 do
+		for i=1 to nameplates.count do
 		(
 			np = nameplates[i]
-			-- create new newName:
 			if self.ro.chk_base.checked do base np
 			if self.ro.chk_first.checked do remove_first np
 			if self.ro.chk_last.checked do remove_last np
 			if self.ro.chk_prefix.checked do prefix np
 			if self.ro.chk_suffix.checked do suffix np
-			if self.ro.chk_num.checked do numbered nameplates
+			if self.ro.chk_num.checked do numbered np i
 			if self.ro.chk_snr.checked do initialize_search_replace np -- this fn does not do the SnR it self, but triggers it
 		)--end for
 	)--end fn	
@@ -406,12 +401,16 @@ struct InteractiveRenamer
 	**/
 	fn assignNewNames nameplates =
 	(
-		for np in nameplates do
+		self.ro.pb.value = 0
+		for i=1 to nameplates.count do
 		(
+			np = nameplates[i]
 			np.assignNameToRef()
 			-- Reset nameplate
 			np.name = np.getNameFromRef()
 			np.newName = np.name
+			
+			self.ro.pb.value = 100.0 / nameplates.count * i
 		)--end for
 	)--end fn
 	,
@@ -437,6 +436,13 @@ struct InteractiveRenamer
 				(
 					np.newName = edt_name.text
 					self.assignNewNames #(np)
+					
+					-- Manual update needed here for assets and files
+					if self.ro.ckb_assets.checked or self.ro.ckb_files.checked do
+					(
+						self.ro.updateNameplates()
+					)--end if
+					
 					self.ro.updateList()
 				)--end if
 				destroyDialog ro_quickSingleRename
@@ -446,7 +452,8 @@ struct InteractiveRenamer
 				destroyDialog ro_quickSingleRename
 			)--end on
 		)
-		createDialog ro_quickSingleRename 284 53 (mouse.screenpos.x - 42) (mouse.screenpos.y - 30) style:#(#style_titlebar, #style_border, #style_sysmenu, #style_toolwindow)
+		createDialog ro_quickSingleRename 284 53 (mouse.screenpos.x - 42) (mouse.screenpos.y - 30) \
+			style:#(#style_titlebar, #style_border, #style_sysmenu, #style_toolwindow)
 
 		-- Hacky way to set focus when the dialog opens up
 		setFocus ro_quickSingleRename.edt_name
@@ -537,7 +544,7 @@ struct InteractiveRenamer
 		fn registerCallbacks =
 		(
 			callbacks.removeScripts id:#interactiveRenamer
-			callbacks.addscript #selectionSetChanged "gInteractiveRenamer.ro.updateAll()" id:#interactiveRenamer
+			callbacks.addscript #selectionSetChanged "gInteractiveRenamer.ro.updateOnSelectionChange()" id:#interactiveRenamer
 		)--end fn
 		
 		fn unregisterCallbacks =
@@ -570,6 +577,9 @@ struct InteractiveRenamer
 			)--end if
 		)--end fn
 		
+		/**
+			This updates not only the checkbuttons (so they behave like a radiogroup), but also many other things based on the given ckb.
+		**/
 		fn updateCheckbuttons ckb =
 		(
 -- 			self.setHeaderImage ckb
@@ -579,14 +589,14 @@ struct InteractiveRenamer
 				(
 					ckb_Materials.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
 					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
-					ckbForceColorUpdate ckb_preview clr_objects; ckbForceColorUpdate ckb_sort clr_objects;
+					ckbForceColorUpdate ckb_preview clr_objects; ckbForceColorUpdate ckb_sort clr_objects; pb.color=clr_objects; pb.value=0
 					self.ro.title = "Object Mode"
 				)
 				(ckb_Materials): 
 				(
 					ckb_Objects.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
 					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedMats.enabled=True; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
-					ckbForceColorUpdate ckb_preview clr_materials; ckbForceColorUpdate ckb_sort clr_materials; 
+					ckbForceColorUpdate ckb_preview clr_materials; ckbForceColorUpdate ckb_sort clr_materials; pb.color=clr_materials; pb.value=0
 					self.ro.title = "Material Mode"
 					
 					updateNestedMatsCheckbox()
@@ -595,24 +605,32 @@ struct InteractiveRenamer
 				(
 					ckb_Materials.checked=False; ckb_Objects.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
 					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
-					ckbForceColorUpdate ckb_preview clr_layers; ckbForceColorUpdate ckb_sort clr_layers; 
+					ckbForceColorUpdate ckb_preview clr_layers; ckbForceColorUpdate ckb_sort clr_layers; pb.color=clr_layers; pb.value=0
 					self.ro.title = "Layer Mode"
 				)
 				(ckb_Assets): 
 				(
 					ckb_Materials.checked=False; ckb_Objects.checked=False; ckb_Layers.checked=False; ckb_Files.checked=False
 					lbl_getNames.enabled=False; rdo_source.enabled=False; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
-					ckbForceColorUpdate ckb_preview clr_assets; ckbForceColorUpdate ckb_sort clr_assets; 
+					ckbForceColorUpdate ckb_preview clr_assets; ckbForceColorUpdate ckb_sort clr_assets; pb.color=clr_assets; pb.value=0
 					self.ro.title = "Asset Mode"
 				)
 				(ckb_Files): 
 				(
 					ckb_Materials.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Objects.checked=False
 					lbl_getNames.enabled=False; rdo_source.enabled=False; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=True; btn_getFiles.enabled=True; btn_refresh.enabled=True
-					ckbForceColorUpdate ckb_preview clr_files; ckbForceColorUpdate ckb_sort clr_files; 
+					ckbForceColorUpdate ckb_preview clr_files; ckbForceColorUpdate ckb_sort clr_files; pb.color=clr_files; pb.value=0
 					self.ro.title = "File Mode"
 				)
 			)--end case
+		)--end fn
+		
+		fn updateRenameButton =
+		(
+			if self.nameplates.count != 0 and self.nameplatesInList != 0 and not lbx_names.selection.isEmpty then
+				btn_rename.enabled = True
+			else
+				btn_rename.enabled = False
 		)--end fn
 		
 		fn updateFactory =
@@ -633,27 +651,39 @@ struct InteractiveRenamer
 			self.factory.collectRefs()
 			self.nameplates = self.factory.buildNameplates()
 		)--end fn
-		
-		fn updateRenameButton =
-		(
-			if self.nameplates.count != 0 and self.nameplatesInList != 0 and not lbx_names.selection.isEmpty then
-				btn_rename.enabled=True
-			else
-				btn_rename.enabled=False
-		)--end fn
-		
+				
 		/**
-			Does all the sorting, filtering and previewing to display nameplates in the listbox.
+			Manages the filtering and sorting of the nameplates, so we can only work on and display those in the list.
 		**/
-		fn updateList =
+		fn updateNameplatesInList = 
 		(
 			self.nameplatesInList = for np in self.nameplates where passesFilter np edt_filter.text collect np
 			if ckb_sort.checked do	
 				qsort self.nameplatesInList self.sortByName
-			
+		)--end fn
+		
+		/**
+			E.g. to discard the preview name before doing the actual renaming.
+		**/
+		fn resetNameplatesNewNames nameplates =
+		(
+			for np in nameplates do 
+				np.newName = np.name
+		)--end fn
+		
+		/**
+			Main function to display names in the list.
+			Does all the sorting, filtering and previewing to display nameplates in the listbox.
+		**/
+		fn updateList =
+		(
+			resetNameplatesNewNames self.nameplates
+			updateNameplatesInList()
+		
 			if ckb_preview.checked then
 			(
-				self.constructNewNames self.nameplatesInList lbx_names.selection
+				selectedNameplates = self.getSelectedNameplates self.nameplatesInList lbx_names.selection
+				self.constructNewNames selectedNameplates
 				namelist = for np in self.nameplatesInList collect np.newName
 			)
 			else
@@ -661,6 +691,7 @@ struct InteractiveRenamer
 			
 			lbx_names.items = namelist
 			lbl_count.text = namelist.count as String + " found"
+				
 			updateRenameButton()
 		)--end fn
 		
@@ -670,6 +701,39 @@ struct InteractiveRenamer
 			updateNameplates()
 			updateList()
 			updateNestedMatsCheckbox()
+		)--end fn
+		
+		/**
+			This makes sure the selectionSetChanged callback only takes action in a mode that supports selections.
+			Used by callback so use a global reference!
+		**/
+		fn updateOnSelectionChange = 
+		(
+			if gInteractiveRenamer.ro.ckb_objects.checked or \
+				gInteractiveRenamer.ro.ckb_materials.checked or \
+				gInteractiveRenamer.ro.ckb_layers.checked do 
+					updateAll()
+		)--end fn
+		
+		fn getFilesFromFolder =
+		(
+			if dn_textbox_folder.text != "" and (doesFileExist dn_textbox_folder.text) then 
+				iniDir = dn_textbox_folder.text
+			else 
+				iniDir = "C:\\"
+			local pth = getSavePath caption:"Scan folder for files:" initialDir:iniDir
+			if pth != undefined do
+			(
+				self.factory.dir = pth -- the getReferencesAndNames fn uses this to get the files, so i dont have to pass it to the fn
+				updateNameplates()
+				updateList()
+				
+				dn_textbox_folder.text = pth
+				
+				-- TODO remember this
+-- 				recentDir = pth
+-- 				save_to_INI()
+			)--end if
 		)--end fn
 
 		-- This fn replaces the "on open do" handler and is responsible to make the rollout aware of the struct instance.
@@ -738,14 +802,36 @@ struct InteractiveRenamer
 			)
 			else ckb_files.checked=True
 		)--end on
+		
+		on btn_getFiles pressed do
+		(
+			getFilesFromFolder()
+		)--end fn
+		
+		on btn_refresh pressed do
+		(
+			if
+				dn_textbox_folder.text != "" and
+				doesFileExist dn_textbox_folder.text and
+				getFileAttribute dn_textbox_folder.text #directory do
+			(
+				updateNameplates()
+				updateList()
+			)--end if
+		)--end on
 				
 		on btn_rename pressed do 
 		(			
-			self.constructNewNames self.nameplates lbx_names.selection
-			self.assignNewNames self.nameplates
+			resetNameplatesNewNames self.nameplates
+			updateNameplatesInList()
 			
-			-- for some reason assets need to be updated manually to show correctly in the list
-			if ckb_assets.checked do
+			selectedNameplates = self.getSelectedNameplates self.nameplatesInList lbx_names.selection
+			
+			self.constructNewNames selectedNameplates
+			self.assignNewNames selectedNameplates
+			
+			-- Assets and files need to be updated manually to show correctly in the list
+			if ckb_assets.checked or ckb_files.checked do
 				updateNameplates()
 			
 			updateList()
@@ -788,7 +874,11 @@ struct InteractiveRenamer
 				unregisterCallbacks()
 			updateAll()
 		)--end on
-		on edt_filter changed txt do updateList()
+		on edt_filter changed txt do 
+		(
+-- 			lbx_names.selection = #none
+			updateList()
+		)--end on
 		
 		/**
 			These event handlers trigger the preview whenever renaming GUI element is changed.

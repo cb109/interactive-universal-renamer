@@ -104,13 +104,12 @@ struct FileNameplate
 
 	fn getNameFromRef =
 	(
-		name = newName = getFileNameFile ref
+		name = newName = (getFileNameFile ref) + (getFilenameType ref)
 	),
 
 	fn assignNameToRef = 
 	(
-		newFileName = newName + (getFileNameType ref)
-		HiddenDOSCommand ("rename " + "\"" + ref + "\"" + " " + "\"" + newFileName + "\"") --quot marks are needed for paths with blank spaces
+		HiddenDOSCommand ("rename " + "\"" + ref + "\"" + " " + "\"" + newName + "\"") --quot marks are needed for paths with blank spaces
 	)
 )--end struct
 
