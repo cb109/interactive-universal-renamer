@@ -8,11 +8,11 @@ files renaming reflected in assets, asset renaming reflected in files
 ###get layers from selected objects
 ###filterbox for names?
 GUI remembering settings from session to session
-dotnet autocompletion box
+###dotnet autocompletion box
 ###selectionSetChanged callback
 ###callback only update when in correct mode (objects)
 ###colored header images
-file mode functionality
+###file mode functionality
 
 numbering: optionally by selection order in list?
 
@@ -21,8 +21,8 @@ numbering: optionally by selection order in list?
 use ENTER in manual rename
 use CTRL+A in list
 
-file mode list update bug when using filter?
---> when applying filter, keeps old item selected and renames it
+###file mode list update bug when using filter?
+###--> when applying filter, keeps old item selected and renames it
 
 ###UPDATE LISTS AFTER RENAMING! (ASSETS?)
 TESTING!!
