@@ -1,36 +1,36 @@
 fileIn "nameplates.ms"
 
--- Global accessor for script. Must be defined prior to the struct to be used by callbacks!
-global gInteractiveRenamer 
-
 struct InteractiveRenamer
 (
 	version = 2.0,
 	self,
 	factory,
-	nameplates, -- All nameplates that fit the mode and source
+	nameplates, -- All nameplates that fit the mode and source. They all have the same type.
 	nameplatesInList, -- Nameplates that match the filter and are sorted -> renaming is done on these!
 	
-	/**  
-		Will execute a function (e.g. assigning a bitmap to an imgTag) in a gamma-neutral context
-	**/
 	fn fileinGammaDecorator func =
 	(
+		/***	Will execute a function (e.g. assigning a bitmap to an imgTag) in a gamma-neutral context 
+		***/
 		oldGamma = fileinGamma
 		fileinGamma = 1.0
 		func()
 		fileinGamma = oldGamma
 	)--end fn	
 	,
-	fn setHeaderImage ckb =
-	(
-		token = (filterString ckb.name "_")[2]
-		self.ro.headerImgPth = (getDir #userScripts) + "\\interactiveRenamer\\interactiveRenamer_header_"+token+".png"
-		fileinGammaDecorator (fn setHeaderImg=(self.ro.imgTag_header.bitmap = openBitmap self.ro.headerImgPth))
-	)--end fn
-	,
+-- 	fn setHeaderImage ckb =
+-- 	(
+-- 		/***	Changes the tool's header image corresponding to the renaming mode.
+-- 		***/
+-- 		token = (filterString ckb.name "_")[2]
+-- 		self.ro.headerImgPth = (getDir #userScripts) + "\\interactiveRenamer\\interactiveRenamer_header_"+token+".png"
+-- 		fileinGammaDecorator (fn setHeaderImg=(self.ro.imgTag_header.bitmap = openBitmap self.ro.headerImgPth))
+-- 	)--end fn
+-- 	,
 -- 	fn colorizeHeaderImage clr mult:1.33 =
 -- 	(
+-- 		/***	Takes the current header images and colorizes it according to a given color and multiplier.
+-- 		***/
 -- 		-- first reset by getting img from file
 -- 		fileinGammaDecorator (fn setHeaderImg=(self.ro.imgTag_header.bitmap = openBitmap self.ro.headerImgPth))
 -- 				
@@ -46,38 +46,37 @@ struct InteractiveRenamer
 -- 		self.ro.imgTag_header.bitmap = newBitmap
 -- 	)--end fn
 -- 	,
-	fn goToWebsite url =
-	(
-		weHaveInet = internet.CheckConnection url:url force:true
-		if weHaveInet then
-			ShellLaunch url ""
-		else
-			print ("Could not open " + url +". Check your internet connection.")
-	)--end fn
-	,
-	/**
-		Function originally by Pete Addington aka LoneRobot
-	**/	
-	fn convertBase64StringToImage str =
-	(
-		local ConvertClass = dotNetClass "System.Convert"
-		local ImageClass = dotNetClass "System.Drawing.Image"
-		
-		local byteArr = ConvertClass.FromBase64String str
-		local memstream = dotnetobject "System.IO.MemoryStream" byteArr
-		local DecodedImg = ImageClass.fromstream memstream
-		memstream.close()  
-		
-		DecodedImg --return
-	)--end fn
-	,
-	/**
-		Used to rearrange references array 
-		works for things that have a ".name" property
-		like objects, materials and layers
-	**/
+-- 	fn goToWebsite url =
+-- 	(
+-- 		/***	Opens an URL in the default browser after checking if there is an internet connection.
+-- 		***/
+-- 		weHaveInet = internet.CheckConnection url:url force:true
+-- 		if weHaveInet then
+-- 			ShellLaunch url ""
+-- 		else
+-- 			print ("Could not open " + url +". Check your internet connection.")
+-- 	)--end fn
+-- 	,
+-- 	fn convertBase64StringToImage str =
+-- 	(
+-- 		/***	Function originally by Pete Addington aka LoneRobot.
+-- 		***/	
+-- 		local ConvertClass = dotNetClass "System.Convert"
+-- 		local ImageClass = dotNetClass "System.Drawing.Image"
+-- 		
+-- 		local byteArr = ConvertClass.FromBase64String str
+-- 		local memstream = dotnetobject "System.IO.MemoryStream" byteArr
+-- 		local DecodedImg = ImageClass.fromstream memstream
+-- 		memstream.close()  
+-- 		
+-- 		DecodedImg --return
+-- 	)--end fn
+-- 	,
 	fn sortByName o1 o2 = 
 	(
+		/***	Used to rearrange a references array. 
+			Works for things that have a ".name" property like objects, materials and layers.
+		***/
 		-- MAXScript can compare strings directly
 		case of
 		(
@@ -87,14 +86,13 @@ struct InteractiveRenamer
 		)--end case
 	)--end fn
 	,
-	/**
-		Tries to collect all materials that are nested inside a base material recursively.
-		Supports an arbitrary number of materials that can have nested materials inside them
-		/param theMat : the base material
-		/param arr : the array that all found materials are appended to
-	**/
 	fn getNestedMaterialsRecursive theMat arr=
 	(		
+		/***	Tries to collect all materials that are nested inside a base material recursively.
+			Supports an arbitrary number of materials that can have nested materials inside them
+			@param	theMat	The base material.
+			@param	arr	The array that all found materials are appended to.
+		***/
 		if theMat != undefined do -- may be undefined e.g. when back material slot of VRay2SidedMtl is empty 
 		(
 			appendIfUnique arr theMat -- collect this one
@@ -166,63 +164,55 @@ struct InteractiveRenamer
 		)--end if
 	)--end fn
 	,
-	/**************************************************
-		RENAMING FUNCTIONS:
-	
-		Most work on single nameplate-objects and use the struct rollout controls.
-		Others (like numbering) take an array of nameplate objects instead of a single one as input.
-		The order in which they are applied is important to get a correct final new name.
-	**************************************************/
-	
-	/**
-		Sets a base name
-	**/
+	/***************************************************
+			RENAMING FUNCTIONS:
+		
+			Most work on single nameplate-objects and use the struct rollout controls.
+			Others (like numbering) take an array of nameplate objects instead of a single one as input.
+			The order in which they are applied is important to get a correct final new name.
+	***************************************************/
 	fn base np =
 	(
+		/***	Sets a base name.
+		***/
 		np.newName = self.ro.edt_base.text
 	)--end fn
 	,
-	/**
-		Adds a prefix to a name
-	**/
 	fn prefix np =
 	(
+		/***	Adds a prefix to a name.
+		***/
 		np.newName = self.ro.edt_prefix.text + np.newName
 	)--end fn
 	,
-	/**
-		Appends a suffix to a name
-	**/
 	fn suffix np =
 	(
+		/***	Appends a suffix to a name.
+		***/	
 		np.newName = np.newName + self.ro.edt_suffix.text
 	)--end fn	
 	,
-	/**
-		Removes a given number of characters from a name, starting at the beginning
-	**/
 	fn remove_first np =
 	(
+		/***	Removes a given number of characters from a name, starting at the beginning.
+		***/
 		np.newName = substring np.newName (self.ro.spn_first.value+1) np.newName.count
 	)--end fn
 	,
-	/**
-		Removes a given number of characters from a name, starting at the end
-	**/
 	fn remove_last np =
 	(
-
+		/***	Removes a given number of characters from a name, starting at the end.
+		***/
 		if self.ro.spn_last.value >= np.newName.count then -- fix for reappearing of names when deleting more chars than they have
 			np.newName = ""
 		else
 			np.newName = substring np.newName 1 (np.newName.count - self.ro.spn_last.value)
 	)--end fn
 	,
-	/**
-		Prepends / appends a numbering to a nameplate based on the supplied index..
-	**/
 	fn numbered np idx =
 	(
+		/***	Prepends / appends a numbering to a nameplate based on the supplied index.
+		***/
 		local step = self.ro.spn_numStep.value
 		local nr = self.ro.spn_numBase.value - step
 		nr = nr + step * idx
@@ -237,32 +227,31 @@ struct InteractiveRenamer
 		else --leading number
 			np.newName = nrStr + np.newName
 	)--end fn
-	,
-	/**
-		A function to search and replace string parts, with the option to check case and 
-		replace first only or all occurences of the search term. It is separated from the initializing
-		function so it can be reused elsewhere.
-	
-		This is quite an abomination as it supports replacing all occurences of a string,
-		which is not possible to do with matchPattern or findString alone, but instead a mixture of both.
-		Also has some code duplication which could probably be refined a lot.
-	
-		/param txt: String
-		/param searchFor: String
-		/param replaceWith: String
-		/optParam all: Boolean
-		/optParam ignoreCase: Boolean
-		/returns: String 
-	**/		
+	,	
 	fn search_replace_all txt searchFor replaceWith all:true ignoreCase:false=
 	(
+		/***	A function to search and replace string parts, with the option to check case and 
+			replace first only or all occurences of the search term. It is separated from the initializing
+			function so it can be reused elsewhere.
+		
+			This is quite an abomination as it supports replacing all occurences of a string,
+			which is not possible to do with matchPattern or findString alone, but instead a mixture of both.
+			Also has some code duplication which could probably be refined a lot.
+		
+			@param	txt	String
+			@param	searchFor	String
+			@param	replaceWith	String
+			@param	all	Boolean
+			@param	ignoreCase	Boolean
+			@returns	String 
+		***/	
 		if searchFor != replaceWith then
 		(
 			local sIdx = findString txt searchFor -- check if there is anything to work with
 			
-			/** 
+			/*** 
 				ALL occurences being replaced 
-			**/
+			***/
 			if all then
 			(
 				caseCheckFailedOccurences = #() -- to be used for string reconstruction later
@@ -309,9 +298,7 @@ struct InteractiveRenamer
 -- 				print ("RESULT = " + result as String)
 			)--end if all
 			
-			/** 
-				Only FIRST occurence MOST CODE JUST COPIED FROM ABOVE
-			**/
+			-- Only FIRST occurence MOST CODE JUST COPIED FROM ABOVE
 			else  
 			(
 				if sIdx != undefined do
@@ -340,12 +327,11 @@ struct InteractiveRenamer
 			txt -- return unchanged
 	)--end fn	
 	,
-	/**
-		This function does NOT do the actual search & replace, 
-		but it uses another function to do the renaming
-	**/
 	fn initialize_search_replace np = 
 	(
+		/***	This function does NOT do the actual search & replace, 
+			but it uses another function to do the renaming
+		***/
 		if self.ro.edt_search != "" do --at least give sth to search for, but allow to replace with nothing
 		(
 			-- replace old name with function result
@@ -362,12 +348,11 @@ struct InteractiveRenamer
 		selectedNameplates -- return
 	)--end fn
 	,
-	/**
-		Creates the new names and stores them in the nameplates, but does not assign it to the references.
-		Works only on names that are selected in the listbox, so we can do a selective renaming.
-	**/
 	fn constructNewNames nameplates =
 	(
+		/***	Creates the new names and stores them in the nameplates, but does not assign it to the references.
+			Works only on names that are selected in the listbox, so we can do a selective renaming.
+		***/
 		for i=1 to nameplates.count do
 		(
 			np = nameplates[i]
@@ -381,11 +366,10 @@ struct InteractiveRenamer
 		)--end for
 	)--end fn	
 	,
-	/**
-		Assigns the newName of the nameplates to its references.
-	**/
 	fn assignNewNames nameplates =
 	(
+		/***	Assigns the newName of the nameplates to its references.
+		***/
 		self.ro.pb.value = 0
 		for i=1 to nameplates.count do
 		(
@@ -400,12 +384,11 @@ struct InteractiveRenamer
 		)--end for
 	)--end fn
 	,
-	/**
-		Meant for quick changes on single names that dont fit a certain pattern for mass renaming.
-		Triggered by doubleclicking an item in list.
-	**/
 	fn quickSingleRename np =
 	(
+		/***	Meant for quick changes on single names that dont fit a certain pattern for mass renaming.
+			Triggered by doubleclicking an item in list.
+		***/
 		try(destroyDialog ro_quickSingleRename)catch()
 		rollout ro_quickSingleRename ("Manual rename:") width:484 height:53
 		(				
@@ -453,40 +436,16 @@ struct InteractiveRenamer
 		ro_quickSingleRename.np = np
 	)--end fn
 	,
--- 	-- WIP
--- 	/**
--- 		This is basically a small specialized tool on its own:
--- 	
--- 		If some assets or files are renamed and given to this function,
--- 		it can apply the same renaming to the asset's file or the file's assets
--- 		so they match again in the asset tracker.
--- 		This of course only works if the files are found. 
--- 		Nameplates must be given to this function 
--- 		
--- 		Be aware that the asset tracker creates its paths based on the current project directory,
--- 		so it may e.g. contain "\..\..\foo.jpg" which would have to be converted into an absolute path first.
--- 	**/
--- 	fn syncAssetsAndFiles nameplates =
--- 	(
--- 		-- To analyze assets and files we create another tool and factory instance
--- 		local _self = InteractiveRenamer()
--- 		if gInteractiveRenamer.ro.rdo_source.state == 2 then mode = "selection" else mode = "scene"
--- 		case of
--- 		(
--- 			(classof nameplates[1] == AssetNameplate): _self.factory = NameplateFactory type:"assets"
--- 			(classof nameplates[1] == FileNameplate): _self.factory = NameplateFactory type:"files"
--- 		)--end case
--- 		
--- 	)--end fn
--- 	,
+	
+	/**************************************************
+			GUI
+	**************************************************/
+	
 	ro = rollout ro "There should be a mode header in here, not this text" width:896 height:398
 	(
-		
-		/**
-			Reference to parent struct.
-			Assign after rollout creation (init) to use parent methods in UI events!
-			See: http://www.losart3d.com/?p=475
-		**/
+		-- Reference to parent struct.
+		-- Assign after rollout creation (init) to use parent methods in UI events!
+		-- See: http://www.losart3d.com/?p=475
 		local self = undefined
 		local recentDir = "" -- Last path of file mode
 		
@@ -533,7 +492,6 @@ struct InteractiveRenamer
 		checkbutton ckb_files "Files" pos:[265,25] width:60 height:38 highlightColor:clr_files
 		checkbutton ckb_assets "Assets" pos:[201,25] width:60 height:38 highlightColor:clr_assets
 		
--- 		edittext dn_textbox_folder "" pos:[333,41] width:454 height:16 
 		dotNetControl dn_textbox_folder "TextBox" pos:[333,41] width:454 height:16 
 		label lbl_getNames "Get names from: " pos:[334,24] width:82 height:16
 		checkbox chk_nestedMats "Get nested materials" pos:[600,24] width:250 height:16 checked:true
@@ -553,16 +511,13 @@ struct InteractiveRenamer
 		button btn_rename "Rename" pos:[695,370] width:190 height:24 enabled:true toolTip:"Rename (make sure to select names in the list first)" 
 		checkbutton ckb_preview "Preview" pos:[11,370] width:190 height:24 highlightColor:clr_objects checked:true
 		
-		/**
-			Methods here should only deal with UI events and stuff like that.
-			Renaming functionality resides in the parent struct (self).
-		**/
-		
-		/**
-			Here: needs directory "interactiveRenamer" to already be created! the MZP should do that
-		**/
+		-- Methods here should only deal with UI events and stuff like that.
+		-- Renaming functionality resides in the parent struct (self).
+
 		fn save_to_INI =
 		(
+			/***	Needs directory "interactiveRenamer" to already be created! the MZP should do that.
+			***/
 			local pth = (getDir #userscripts) + "\\interactiveRenamer\\\interactiveRenamer.ini"
 			setINISetting pth "Recent Paths" "fileModeDir" recentDir
 		)--end fn
@@ -570,7 +525,6 @@ struct InteractiveRenamer
 		fn load_from_INI =
 		(
 			local pth = (getDir #userscripts) + "\\interactiveRenamer\\\interactiveRenamer.ini"
-			print pth
 			if doesFileExist pth do
 			(
 				recentDir = getINISetting pth "Recent Paths" "fileModeDir" 
@@ -588,12 +542,11 @@ struct InteractiveRenamer
 			callbacks.removeScripts id:#interactiveRenamer
 		)--end fn
 		
-		/**
-			This makes sure the selectionSetChanged callback only takes action in a mode that supports selections.
-			Used by callback so use a global reference!
-		**/
 		fn updateOnSelectionChange = 
-		(		
+		(	
+			/***	This makes sure the selectionSetChanged callback only takes action in a mode that supports selections.
+				Used by callback so use a global reference!
+			***/
 			if gInteractiveRenamer.ro.ckb_objects.checked or \
 				gInteractiveRenamer.ro.ckb_materials.checked or \
 				gInteractiveRenamer.ro.ckb_layers.checked do 
@@ -602,6 +555,8 @@ struct InteractiveRenamer
 		
 		fn ckbForceColorUpdate ckb clr =
 		(
+			/***    A little cheat to force a color change on a checkbutton.
+			***/
 			ckb.highlightColor = clr
 			temp = ckb.caption
 			ckb.caption = ""
@@ -610,6 +565,8 @@ struct InteractiveRenamer
 		
 		fn passesFilter nameplate filtertxt =
 		(
+			/***	Filters nameplates if their name is not empty and does not match the filtertxt.
+			***/
 			if findString nameplate.name filtertxt != undefined or filtertxt == "" then True	
 			else False
 		)--end fn
@@ -630,11 +587,10 @@ struct InteractiveRenamer
 			dn_textbox_folder.text = recentDir
 		)--end fn
 		
-		/**
-			This updates not only the checkbuttons (so they behave like a radiogroup), but also many other things based on the given ckb.
-		**/
 		fn updateCheckbuttons ckb =
 		(
+			/***	This updates not only the checkbuttons (so they behave like a radiogroup), but also many other things based on the given ckb.
+			***/
 -- 			self.setHeaderImage ckb
 			case ckb of
 			( 
@@ -711,31 +667,28 @@ struct InteractiveRenamer
 			self.nameplates = self.factory.buildNameplates()
 		)--end fn
 				
-		/**
-			Manages the filtering and sorting of the nameplates, so we can only work on and display those in the list.
-		**/
 		fn updateNameplatesInList = 
 		(
+			/***	Manages the filtering and sorting of the nameplates, so we can only work on and display those in the list.
+			***/
 			self.nameplatesInList = for np in self.nameplates where passesFilter np edt_filter.text collect np
 			if ckb_sort.checked do	
 				qsort self.nameplatesInList self.sortByName
 		)--end fn
 		
-		/**
-			E.g. to discard the preview name before doing the actual renaming.
-		**/
 		fn resetNameplatesNewNames nameplates =
 		(
+			/***	E.g. to discard the preview name before doing the actual renaming.
+			***/
 			for np in nameplates do 
 				np.newName = np.name
 		)--end fn
 		
-		/**
-			Main function to display names in the list.
-			Does all the sorting, filtering and previewing to display nameplates in the listbox.
-		**/
 		fn updateList =
 		(
+			/***	Main function to display names in the list.
+				Does all the sorting, filtering and previewing to display nameplates in the listbox.
+			***/
 			resetNameplatesNewNames self.nameplates
 			updateNameplatesInList()
 		
@@ -769,32 +722,25 @@ struct InteractiveRenamer
 				iniDir = dn_textbox_folder.text
 			else 
 				iniDir = "C:\\"
-			local pth = getSavePath caption:"Scan folder for files:" initialDir:iniDir
+			pth = getSavePath caption:"Scan folder for files:" initialDir:iniDir
 			if pth != undefined do
-			(
-				self.factory.dir = pth -- the getReferencesAndNames fn uses this to get the files, so i dont have to pass it to the fn
-				updateNameplates()
-				updateList()
-				
 				dn_textbox_folder.text = pth
-				
-				-- TODO remember this
--- 				recentDir = pth
--- 				save_to_INI()
-			)--end if
 		)--end fn
 		
 		fn doublecheckFileRenaming =
 		(
+			/***	As file renaming can cause quite some damage, use a popup to make sure this is OK.
+			***/
 			allowed = True
 			if ckb_files.checked do
 				allowed = querybox "Are you sure you want to permanently rename these files?" title:"WARNING" 
 			allowed --return
 		)--end fn
 
-		-- This fn replaces the "on open do" handler and is responsible to make the rollout aware of the struct instance.
 		fn init pself = 
 		(
+			/***	This fn replaces the "on open do" handler and is responsible to make the rollout aware of the struct instance.
+			***/
 			self = pself
 			-- When assigning the header image, make sure to set gamma to 1.0 first and reset afterwards
 			self.fileinGammaDecorator (fn setHeaderImg=(imgTag_header.bitmap = openBitmap headerImgPth))
@@ -808,9 +754,10 @@ struct InteractiveRenamer
 			updateAll()
 		)--end fn
 		
-		/**
-			Event handlers
-		**/
+		/**************************************************
+				EVENTS
+		**************************************************/
+		
 		on ro close do self.close()
 		
 		on ckb_objects changed state do
@@ -949,7 +896,7 @@ struct InteractiveRenamer
 		
 		on edt_filter changed txt do 
 		(
--- 			lbx_names.selection = #none
+			lbx_names.selection = #None
 			updateList()
 		)--end on
 		
@@ -960,14 +907,11 @@ struct InteractiveRenamer
 				getFileAttribute dn_textbox_folder.text #directory then
 				(
 					self.factory.dir = dn_textbox_folder.text					
-					-- Remember path for next session
 					recentDir = dn_textbox_folder.text
 					save_to_INI()
 				)
 				else
-				(
 					self.factory.dir = ""	
-				)--end else
 				
 				updateNameplates()
 				updateList()
@@ -1003,16 +947,12 @@ struct InteractiveRenamer
 		on chk_prefix changed state do updateList()
 		on chk_first changed state do updateList()
 		on rdo_num changed state do	updateList()
-		
 	)--end rollout
 	,
 	fn show = 
 	(	
 		createDialog ro style:#(#style_titlebar, #style_border, #style_sysmenu, #style_toolwindow)
 		ro.init self
-		
-		-- For some reason we must set it here, setting it as default in the rollout would disable it forever
-		ro.dn_textbox_folder.enabled = False
 		-- Enable autocompletion
 		ro.dn_textbox_folder.AutoCompleteMode = (dotnetClass "System.Windows.Forms.AutoCompleteMode").Suggest 
 		ro.dn_textbox_folder.AutoCompleteSource  = (dotnetClass "System.Windows.Forms.AutoCompleteSource").FileSystemDirectories 
@@ -1029,8 +969,4 @@ struct InteractiveRenamer
 	)--end fn
 )--end struct
 
--- Execute script -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-try(gInteractiveRenamer.close())catch()
-gInteractiveRenamer = InteractiveRenamer()
-gInteractiveRenamer.self = gInteractiveRenamer
-gInteractiveRenamer.show()
+"imported interactiveRenamer.ms"
