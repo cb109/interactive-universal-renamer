@@ -1,0 +1,1 @@
+name "Interactive Universal Renamer"description "Installs Interactive Universal Renamer"version 2.00treeCopy interactiveRenamer to $userScriptscopy interactiveRenamer\Buelter-interactiveRenamer_macro.mcr to $usermacrosdrop interactiveRenamer\interactiveRenamer_installed.msrun interactiveRenamer\interactiveRenamer_installed.msclear temp on MAX exit

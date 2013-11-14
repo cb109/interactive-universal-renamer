@@ -8,6 +8,7 @@ files renaming reflected in assets, asset renaming reflected in files
 ###get layers from selected objects
 ###filterbox for names?
 GUI remembering settings from session to session
+###GUI remembering last path
 ###dotnet autocompletion box
 ###selectionSetChanged callback
 ###callback only update when in correct mode (objects)
@@ -18,7 +19,7 @@ numbering: optionally by selection order in list?
 
 ###progressbar update in mode color
 
-use ENTER in manual rename
+###use ENTER and ESCAPE in manual rename
 use CTRL+A in list
 
 ###file mode list update bug when using filter?
