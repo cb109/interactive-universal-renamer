@@ -125,6 +125,7 @@ struct AbstractNameplateFactory
 	refs,
 	nested, 
 	dir, 
+	-- Add helper functions here as needed,
 	fn collectRefs =
 	(
 		fn collectObjectRefs=()
@@ -145,6 +146,84 @@ struct NameplateFactory
 	nested = false, -- only for materials mode. if true, get nested materials
 	dir = "", -- only for files mode. get all files from this folder as refs
 
+	fn getNestedMaterialsRecursive theMat arr=
+	(		
+		/***	Tries to collect all materials that are nested inside a base material recursively.
+			Supports an arbitrary number of materials that can have nested materials inside them
+			@param	theMat	The base material.
+			@param	arr	The array that all found materials are appended to.
+		***/
+		if theMat != undefined do -- may be undefined e.g. when back material slot of VRay2SidedMtl is empty 
+		(
+			appendIfUnique arr theMat -- collect this one
+		
+			case (classof theMat) of -- dig further if there is more to get
+			(		
+				-- Standard nested materials:
+				Multimaterial :
+				(
+					for m in theMat do
+						getNestedMaterialsRecursive m arr
+				)
+				Blend :
+				(
+					getNestedMaterialsRecursive theMat.map1 arr
+					getNestedMaterialsRecursive theMat.map2 arr
+				)
+				Shell_Material :
+				(
+					getNestedMaterialsRecursive theMat.originalMaterial arr
+					getNestedMaterialsRecursive theMat.bakedMaterial arr
+				)	
+				compositematerial :
+				(
+					getNestedMaterialsRecursive theMat.baseMaterial arr
+					for m in theMat.materiallist where m != undefined do 
+						getNestedMaterialsRecursive m arr
+				)	
+				Shellac :
+				(
+					getNestedMaterialsRecursive theMat.shellacMtl1 arr
+					getNestedMaterialsRecursive theMat.shellacMtl2 arr
+				)
+				TopBottom :
+				(
+					getNestedMaterialsRecursive theMat.topMaterial arr
+					getNestedMaterialsRecursive theMat.bottomMaterial arr
+				)			
+				DoubleSided :
+				(
+					getNestedMaterialsRecursive theMat.material1 arr
+					getNestedMaterialsRecursive theMat.material2 arr
+				)
+				-- VRay nested materials:
+				VRay2SidedMtl :
+				(
+					getNestedMaterialsRecursive theMat.frontMtl arr
+					getNestedMaterialsRecursive theMat.backMtl arr
+				)
+				VRayBlendMtl :
+				(
+					getNestedMaterialsRecursive theMat.baseMtl arr
+					for m in a.coatMtl do 
+						getNestedMaterialsRecursive m arr
+				)
+				VRayMtlWrapper :
+				(
+					getNestedMaterialsRecursive theMat.baseMtl arr
+				)
+				VRayOverrideMtl :
+				(
+					getNestedMaterialsRecursive theMat.baseMtl arr
+					getNestedMaterialsRecursive theMat.giMtl arr
+					getNestedMaterialsRecursive theMat.reflectMtl arr
+					getNestedMaterialsRecursive theMat.refractMtl arr
+					getNestedMaterialsRecursive theMat.shadowMtl arr
+				)
+			)--end case	
+		)--end if
+	)--end fn
+	,	
 	fn collectRefs =
 	(
 		refs = #()
@@ -171,7 +250,7 @@ struct NameplateFactory
 						if nested then -- get all nested materials as well
 						(
 							-- Referring to global accessor of script here; maybe move function to this file
-							gInteractiveRenamer.getNestedMaterialsRecursive s.material refs
+							getNestedMaterialsRecursive s.material refs
 						)
 						else -- only get base materials
 						(
@@ -207,6 +286,8 @@ struct NameplateFactory
 		fn collectAssetRefs =
 		(
 			refs = #()
+			-- Inital refresh needed to detect files
+			ATSOps.Refresh()
 			ATSOps.GetFiles &refs
 			refs -- return
 		)--end fn

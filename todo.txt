@@ -14,7 +14,7 @@ GUI remembering settings from session to session
 ###callback only update when in correct mode (objects)
 ###colored header images
 ###file mode functionality
-
+###assets only seem at first when asset tracker has been opened before (refresh?)
 numbering: optionally by selection order in list?
 
 ###progressbar update in mode color

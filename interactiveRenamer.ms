@@ -1,5 +1,9 @@
 fileIn "nameplates.ms"
 
+-- Global accessor for the script. 
+-- Must be defined at first to be used by callbacks.
+global gInteractiveRenamer 
+
 struct InteractiveRenamer
 (
 	version = 2.0,
@@ -7,7 +11,46 @@ struct InteractiveRenamer
 	factory,
 	nameplates, -- All nameplates that fit the mode and source. They all have the same type.
 	nameplatesInList, -- Nameplates that match the filter and are sorted -> renaming is done on these!
-	
+
+	fn save_to_INI =
+	(
+		/***	Needs directory "interactiveRenamer" to already be created! the MZP should do that.
+		***/
+		local pth = (getDir #userscripts) + "\\interactiveRenamer\\interactiveRenamer.ini"
+		setINISetting pth "Recent Paths" "fileModeDir" recentDir
+	)--end fn
+	,
+	fn load_from_INI =
+	(
+		local pth = (getDir #userscripts) + "\\interactiveRenamer\\interactiveRenamer.ini"
+		if doesFileExist pth do
+		(
+			recentDir = getINISetting pth "Recent Paths" "fileModeDir" 
+		)--end if
+	)--end fn
+	,
+	fn registerCallbacks =
+	(
+		callbacks.removeScripts id:#interactiveRenamer
+		callbacks.addscript #selectionSetChanged "gInteractiveRenamer.updateOnSelectionChange()" id:#interactiveRenamer
+	)--end fn
+	,
+	fn unregisterCallbacks =
+	(
+		callbacks.removeScripts id:#interactiveRenamer
+	)--end fn
+	,
+	fn updateOnSelectionChange = 
+	(	
+		/***	This makes sure the selectionSetChanged callback only takes action in a mode that supports selections.
+			Used by callback so use a global reference!
+		***/		
+		if gInteractiveRenamer.ro.ckb_objects.checked or \
+			gInteractiveRenamer.ro.ckb_materials.checked or \
+			gInteractiveRenamer.ro.ckb_layers.checked do 
+				gInteractiveRenamer.ro.updateAll()	
+	)--end fn
+	,
 	fn fileinGammaDecorator func =
 	(
 		/***	Will execute a function (e.g. assigning a bitmap to an imgTag) in a gamma-neutral context 
@@ -84,84 +127,6 @@ struct InteractiveRenamer
 			(o2.name < o1.name): 1
 			default: 0
 		)--end case
-	)--end fn
-	,
-	fn getNestedMaterialsRecursive theMat arr=
-	(		
-		/***	Tries to collect all materials that are nested inside a base material recursively.
-			Supports an arbitrary number of materials that can have nested materials inside them
-			@param	theMat	The base material.
-			@param	arr	The array that all found materials are appended to.
-		***/
-		if theMat != undefined do -- may be undefined e.g. when back material slot of VRay2SidedMtl is empty 
-		(
-			appendIfUnique arr theMat -- collect this one
-		
-			case (classof theMat) of -- dig further if there is more to get
-			(		
-				-- Standard nested materials:
-				Multimaterial :
-				(
-					for m in theMat do
-						getNestedMaterialsRecursive m arr
-				)
-				Blend :
-				(
-					getNestedMaterialsRecursive theMat.map1 arr
-					getNestedMaterialsRecursive theMat.map2 arr
-				)
-				Shell_Material :
-				(
-					getNestedMaterialsRecursive theMat.originalMaterial arr
-					getNestedMaterialsRecursive theMat.bakedMaterial arr
-				)	
-				compositematerial :
-				(
-					getNestedMaterialsRecursive theMat.baseMaterial arr
-					for m in theMat.materiallist where m != undefined do 
-						getNestedMaterialsRecursive m arr
-				)	
-				Shellac :
-				(
-					getNestedMaterialsRecursive theMat.shellacMtl1 arr
-					getNestedMaterialsRecursive theMat.shellacMtl2 arr
-				)
-				TopBottom :
-				(
-					getNestedMaterialsRecursive theMat.topMaterial arr
-					getNestedMaterialsRecursive theMat.bottomMaterial arr
-				)			
-				DoubleSided :
-				(
-					getNestedMaterialsRecursive theMat.material1 arr
-					getNestedMaterialsRecursive theMat.material2 arr
-				)
-				-- VRay nested materials:
-				VRay2SidedMtl :
-				(
-					getNestedMaterialsRecursive theMat.frontMtl arr
-					getNestedMaterialsRecursive theMat.backMtl arr
-				)
-				VRayBlendMtl :
-				(
-					getNestedMaterialsRecursive theMat.baseMtl arr
-					for m in a.coatMtl do 
-						getNestedMaterialsRecursive m arr
-				)
-				VRayMtlWrapper :
-				(
-					getNestedMaterialsRecursive theMat.baseMtl arr
-				)
-				VRayOverrideMtl :
-				(
-					getNestedMaterialsRecursive theMat.baseMtl arr
-					getNestedMaterialsRecursive theMat.giMtl arr
-					getNestedMaterialsRecursive theMat.reflectMtl arr
-					getNestedMaterialsRecursive theMat.refractMtl arr
-					getNestedMaterialsRecursive theMat.shadowMtl arr
-				)
-			)--end case	
-		)--end if
 	)--end fn
 	,
 	/***************************************************
@@ -523,45 +488,6 @@ struct InteractiveRenamer
 		
 		-- Methods here should only deal with UI events and stuff like that.
 		-- Renaming functionality resides in the parent struct (self).
-
-		fn save_to_INI =
-		(
-			/***	Needs directory "interactiveRenamer" to already be created! the MZP should do that.
-			***/
-			local pth = (getDir #userscripts) + "\\interactiveRenamer\\\interactiveRenamer.ini"
-			setINISetting pth "Recent Paths" "fileModeDir" recentDir
-		)--end fn
-		
-		fn load_from_INI =
-		(
-			local pth = (getDir #userscripts) + "\\interactiveRenamer\\\interactiveRenamer.ini"
-			if doesFileExist pth do
-			(
-				recentDir = getINISetting pth "Recent Paths" "fileModeDir" 
-			)--end if
-		)--end fn
-		
-		fn registerCallbacks =
-		(
-			callbacks.removeScripts id:#interactiveRenamer
-			callbacks.addscript #selectionSetChanged "gInteractiveRenamer.ro.updateOnSelectionChange()" id:#interactiveRenamer
-		)--end fn
-		
-		fn unregisterCallbacks =
-		(
-			callbacks.removeScripts id:#interactiveRenamer
-		)--end fn
-		
-		fn updateOnSelectionChange = 
-		(	
-			/***	This makes sure the selectionSetChanged callback only takes action in a mode that supports selections.
-				Used by callback so use a global reference!
-			***/
-			if gInteractiveRenamer.ro.ckb_objects.checked or \
-				gInteractiveRenamer.ro.ckb_materials.checked or \
-				gInteractiveRenamer.ro.ckb_layers.checked do 
-					gInteractiveRenamer.ro.updateAll()		
-		)--end fn
 		
 		fn ckbForceColorUpdate ckb clr =
 		(
@@ -755,10 +681,10 @@ struct InteractiveRenamer
 			-- When assigning the header image, make sure to set gamma to 1.0 first and reset afterwards
 			self.fileinGammaDecorator (fn setHeaderImg=(imgTag_header.bitmap = openBitmap headerImgPth))
 			-- Enable initial callbacks
-			if rdo_source.state == 2 do registerCallbacks()
+			if rdo_source.state == 2 do self.registerCallbacks()
 				
 			-- Get INI settings
-			load_from_INI()
+			self.load_from_INI()
 				
 			updateCheckbuttons ckb_objects -- hides/enables other gui stuff
 			updateAll()
@@ -898,9 +824,9 @@ struct InteractiveRenamer
 		on rdo_source changed state do 
 		(
 			if state == 2 then
-				registerCallbacks()
+				self.registerCallbacks()
 			else
-				unregisterCallbacks()
+				self.unregisterCallbacks()
 			updateAll()
 		)--end on
 		
@@ -918,7 +844,7 @@ struct InteractiveRenamer
 				(
 					self.factory.dir = dn_textbox_folder.text					
 					recentDir = dn_textbox_folder.text
-					save_to_INI()
+					self.save_to_INI()
 				)
 				else
 					self.factory.dir = ""	
@@ -970,7 +896,7 @@ struct InteractiveRenamer
 	,
 	fn close = 
 	(
-		ro.unregisterCallbacks()
+		unregisterCallbacks()
 		try
 		(
 			destroyDialog ro
@@ -980,3 +906,8 @@ struct InteractiveRenamer
 )--end struct
 
 "imported interactiveRenamer.ms"
+
+try(gInteractiveRenamer.close())catch()
+gInteractiveRenamer = InteractiveRenamer()
+gInteractiveRenamer.self = gInteractiveRenamer
+gInteractiveRenamer.show()

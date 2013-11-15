@@ -3,7 +3,7 @@ category:"Buelter"
 buttontext:"Interactive Renamer"
 (
 	dir = getDir #userScripts + "\\interactiveRenamer"
-	script = dir + "\\interactiveRenamer_start.ms"
+	script = dir + "\\interactiveRenamer.ms"
 	
 	if doesFileExist script then
 		fileIn script
