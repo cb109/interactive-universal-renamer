@@ -17,7 +17,7 @@ struct InteractiveRenamer
 		/***	Needs directory "interactiveRenamer" to already be created! the MZP should do that.
 		***/
 		local pth = (getDir #userscripts) + "\\interactiveRenamer\\interactiveRenamer.ini"
-		setINISetting pth "Recent Paths" "fileModeDir" recentDir
+		setINISetting pth "Recent Paths" "fileModeDir" self.ro.recentDir
 	)--end fn
 	,
 	fn load_from_INI =
@@ -25,7 +25,7 @@ struct InteractiveRenamer
 		local pth = (getDir #userscripts) + "\\interactiveRenamer\\interactiveRenamer.ini"
 		if doesFileExist pth do
 		(
-			recentDir = getINISetting pth "Recent Paths" "fileModeDir" 
+			self.ro.recentDir = getINISetting pth "Recent Paths" "fileModeDir" 
 		)--end if
 	)--end fn
 	,
@@ -422,7 +422,6 @@ struct InteractiveRenamer
 		-- Assign after rollout creation (init) to use parent methods in UI events!
 		-- See: http://www.losart3d.com/?p=475
 		local self = undefined
-		local recentDir = "" -- Last path of file mode
 		
 		local recentDir = "" -- from/to INI to remember last path for file mode
 		local headerImgPth = (getDir #userScripts) + "\\interactiveRenamer\\interactiveRenamer_header.png"

@@ -1,1 +1,0 @@
-winrar a -afzip -r -x*.bat InteractiveRenamer2.mzp
