@@ -205,7 +205,7 @@ struct NameplateFactory
 				VRayBlendMtl :
 				(
 					getNestedMaterialsRecursive theMat.baseMtl arr
-					for m in a.coatMtl do 
+					for m in theMat.coatMtl do 
 						getNestedMaterialsRecursive m arr
 				)
 				VRayMtlWrapper :
