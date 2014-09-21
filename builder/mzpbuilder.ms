@@ -54,7 +54,7 @@ Changelog:
 	2 EDIT THIS FILEPATH (THEINIFILE) TO POINT TO YOUR OWN INI-FILE
 	3 THEN EXECUTE THIS FILE TO COMPILE YOUR MZP-FILE
 	***************************************************************************************************/
-	local theIniFile = @"C:\Users\Buelter\Dropbox\DEV aktuell\mxs temp AKTUELL 03\interactiveRenamer\builder\mzpbuilder.ini"
+	local theIniFile = @"C:\Users\Buelter\Dropbox\DEV\mxs temp AKTUELL 03\interactiveRenamer\builder\mzpbuilder.ini"
 
 	/***************************************************************************************************
 	DON'T EDIT THE STUFF BELOW, IT SHOULD WORK BY ITS OWN...
