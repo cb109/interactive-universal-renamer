@@ -1,3 +1,5 @@
 *HISTORY*
 mzp.run
 build
+*.sublime-project
+*.sublime-workspace
