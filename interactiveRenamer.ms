@@ -61,60 +61,6 @@ struct InteractiveRenamer
 		fileinGamma = oldGamma
 	)--end fn
 	,
--- 	fn setHeaderImage ckb =
--- 	(
--- 		/***	Changes the tool's header image corresponding to the renaming mode.
--- 		***/
--- 		token = (filterString ckb.name "_")[2]
--- 		self.ro.headerImgPth = (getDir #userScripts) + "\\interactiveRenamer\\interactiveRenamer_header_"+token+".png"
--- 		fileinGammaDecorator (fn setHeaderImg=(self.ro.imgTag_header.bitmap = openBitmap self.ro.headerImgPth))
--- 	)--end fn
--- 	,
--- 	fn colorizeHeaderImage clr mult:1.33 =
--- 	(
--- 		/***	Takes the current header images and colorizes it according to a given color and multiplier.
--- 		***/
--- 		-- first reset by getting img from file
--- 		fileinGammaDecorator (fn setHeaderImg=(self.ro.imgTag_header.bitmap = openBitmap self.ro.headerImgPth))
---
--- 		-- then colorize
--- 		oldBitmap = self.ro.imgTag_header.bitmap
--- 		newBitmap = BitMap oldBitmap.width oldBitmap.height
--- 		for row=1 to oldBitmap.height do
--- 		(
--- 			pixels = getPixels oldBitmap [0, row] oldBitmap.width
--- 			newPixels = for p in pixels collect (p*clr*mult)
--- 			setPixels newBitmap [0, row] newPixels
--- 		)--end for
--- 		self.ro.imgTag_header.bitmap = newBitmap
--- 	)--end fn
--- 	,
--- 	fn goToWebsite url =
--- 	(
--- 		/***	Opens an URL in the default browser after checking if there is an internet connection.
--- 		***/
--- 		weHaveInet = internet.CheckConnection url:url force:true
--- 		if weHaveInet then
--- 			ShellLaunch url ""
--- 		else
--- 			print ("Could not open " + url +". Check your internet connection.")
--- 	)--end fn
--- 	,
--- 	fn convertBase64StringToImage str =
--- 	(
--- 		/***	Function originally by Pete Addington aka LoneRobot.
--- 		***/
--- 		local ConvertClass = dotNetClass "System.Convert"
--- 		local ImageClass = dotNetClass "System.Drawing.Image"
---
--- 		local byteArr = ConvertClass.FromBase64String str
--- 		local memstream = dotnetobject "System.IO.MemoryStream" byteArr
--- 		local DecodedImg = ImageClass.fromstream memstream
--- 		memstream.close()
---
--- 		DecodedImg --return
--- 	)--end fn
--- 	,
 	fn sortByName o1 o2 =
 	(
 		/***	Used to rearrange a references array.
