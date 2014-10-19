@@ -1,3 +1,6 @@
+fileIn "assetfunctions.ms"
+
+
 struct AbstractNameplate
 (
 	/**
@@ -77,6 +80,8 @@ struct LayerNameplate
 
 struct AssetNameplate
 (
+	/***Absolute paths used here (resolvedFileName), but the display
+	fileName of the asset struct is also updated when renaming.***/
 	id = undefined,
 	name = undefined,
 	newName = undefined,
@@ -84,24 +89,12 @@ struct AssetNameplate
 
 	fn getNameFromRef =
 	(
-		name = newName = ref
+		name = newName = ref.resolvedFileName
 	),
 
 	fn assignNameToRef =
 	(
-		dialogVisible = ATSOps.visible
-		if not dialogVisible do
-			ATSOps.visible = True
-
-		ATSOps.ClearSelection()
-		ATSOps.SelectFiles #(name)
-		try
-			ATSOps.RetargetSelection newName
-		catch (
-			messageBox ("Could not rename asset: " + name) title:"Rename Failed"
-		)
-
-		ATSOps.visible = dialogVisible
+		AssetFunctions.updateAssetFileName name newName
 	)
 )--end struct
 
@@ -117,9 +110,13 @@ struct FileNameplate
 		name = newName = (getFileNameFile ref) + (getFilenameType ref)
 	),
 
-	fn assignNameToRef =
+	fn assignNameToRef debug: =
 	(
-		HiddenDOSCommand ("rename " + "\"" + ref + "\"" + " " + "\"" + newName + "\"") --quot marks are needed for paths with blank spaces
+		-- Quotation marks are needed for paths with spaces.
+		renameCmd = "rename " + "\"" + ref + "\"" + " " + "\"" + newName + "\""
+		if debug != unsupplied and debug do
+			print ("DEBUG - FileNamePlate - Executing: " +  renameCmd)
+		HiddenDOSCommand renameCmd
 	)
 )--end struct
 
@@ -237,6 +234,7 @@ struct NameplateFactory
 	fn collectRefs =
 	(
 		refs = #()
+
 		fn collectObjectRefs =
 		(
 			refs = #()
@@ -295,11 +293,7 @@ struct NameplateFactory
 
 		fn collectAssetRefs =
 		(
-			refs = #()
-			-- Inital refresh needed to detect files
-			ATSOps.Refresh()
-			ATSOps.GetFiles &refs
-			refs -- return
+			AssetFunctions.getAssets()
 		)--end fn
 
 		fn collectFileRefs =
@@ -356,5 +350,3 @@ struct NameplateFactory
 -- test.collectRefs()
 -- nps = test.buildNameplates()
 -- print nps
-
-"imported nameplates.ms"
