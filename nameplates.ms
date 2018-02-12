@@ -160,7 +160,7 @@ struct NameplateFactory
 		appendIfUnique arr layer
 		local parent = layer.getParent()
 		if parent != undefined do (
-			getNestedLayersForObject parent arr
+			getNestedLayersRecursive parent arr
 		)
 	),
 
