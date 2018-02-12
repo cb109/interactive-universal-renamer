@@ -6,7 +6,7 @@ global gInteractiveRenamer
 
 struct InteractiveRenamer
 (
-	version = 2.10,
+	version = 2.20,
 	self,
 	factory,
 	nameplates, -- All nameplates that fit the mode and source. They all have the same type.
