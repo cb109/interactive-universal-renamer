@@ -504,7 +504,7 @@ struct InteractiveRenamer
 
 		dotNetControl dn_textbox_folder "TextBox" pos:[333,41] width:454 height:16
 		label lbl_getNames "Get names from: " pos:[334,24] width:82 height:16
-		checkbox chk_nestedMats "Get nested materials" pos:[600,24] width:250 height:16 checked:true
+		checkbox chk_nestedRefs "Get nested materials/layers" pos:[600,24] width:250 height:16 checked:true
 		radiobuttons rdo_source "" pos:[426,24] width:195 height:16 labels:#("Scene", "Selected Objects") default:2
 		button btn_getFiles " ..." pos:[792,40] width:71 height:22 toolTip:"LMB: Browse folder, RMB: Open path in windows explorer"
 		button btn_refresh "R" pos:[867,40] width:22 height:22 toolTip:"Refresh list"
@@ -542,14 +542,14 @@ struct InteractiveRenamer
 			else False
 		)--end fn
 
-		fn updateNestedMatsCheckbox =
+		fn updateNestedRefsCheckbox =
 		(
-			if ckb_materials.checked do
+			if ckb_materials.checked or ckb_layers.checked do
 			(
 				if rdo_source.state == 2 then
-					chk_nestedMats.enabled = True
+					chk_nestedRefs.enabled = True
 				else
-					chk_nestedMats.enabled = False
+					chk_nestedRefs.enabled = False
 			)--end if
 		)--end fn
 
@@ -568,37 +568,39 @@ struct InteractiveRenamer
 				(ckb_Objects):
 				(
 					ckb_Materials.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
-					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
+					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedRefs.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
 					ckbForceColorUpdate ckb_preview clr_objects; ckbForceColorUpdate ckb_sort clr_objects; pb.color=clr_objects; pb.value=0
 					self.ro.title = "Object Mode"
 				)
 				(ckb_Materials):
 				(
 					ckb_Objects.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
-					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedMats.enabled=True; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
+					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedRefs.enabled=True; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
 					ckbForceColorUpdate ckb_preview clr_materials; ckbForceColorUpdate ckb_sort clr_materials; pb.color=clr_materials; pb.value=0
 					self.ro.title = "Material Mode"
 
-					updateNestedMatsCheckbox()
+					updateNestedRefsCheckbox()
 				)
 				(ckb_Layers):
 				(
 					ckb_Materials.checked=False; ckb_Objects.checked=False; ckb_Assets.checked=False; ckb_Files.checked=False
-					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
+					lbl_getNames.enabled=True; rdo_source.enabled=True; chk_nestedRefs.enabled=True; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
 					ckbForceColorUpdate ckb_preview clr_layers; ckbForceColorUpdate ckb_sort clr_layers; pb.color=clr_layers; pb.value=0
 					self.ro.title = "Layer Mode"
+
+					updateNestedRefsCheckbox()
 				)
 				(ckb_Assets):
 				(
 					ckb_Materials.checked=False; ckb_Objects.checked=False; ckb_Layers.checked=False; ckb_Files.checked=False
-					lbl_getNames.enabled=False; rdo_source.enabled=False; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
+					lbl_getNames.enabled=False; rdo_source.enabled=False; chk_nestedRefs.enabled=False; dn_textbox_folder.enabled=False; btn_getFiles.enabled=False; btn_refresh.enabled=False
 					ckbForceColorUpdate ckb_preview clr_assets; ckbForceColorUpdate ckb_sort clr_assets; pb.color=clr_assets; pb.value=0
 					self.ro.title = "Asset Mode"
 				)
 				(ckb_Files):
 				(
 					ckb_Materials.checked=False; ckb_Layers.checked=False; ckb_Assets.checked=False; ckb_Objects.checked=False
-					lbl_getNames.enabled=False; rdo_source.enabled=False; chk_nestedMats.enabled=False; dn_textbox_folder.enabled=True; btn_getFiles.enabled=True; btn_refresh.enabled=True
+					lbl_getNames.enabled=False; rdo_source.enabled=False; chk_nestedRefs.enabled=False; dn_textbox_folder.enabled=True; btn_getFiles.enabled=True; btn_refresh.enabled=True
 					ckbForceColorUpdate ckb_preview clr_files; ckbForceColorUpdate ckb_sort clr_files; pb.color=clr_files; pb.value=0
 					self.ro.title = "File Mode"
 				)
@@ -625,8 +627,8 @@ struct InteractiveRenamer
 			case of
 			(
 				(ckb_Objects.checked): self.factory = NameplateFactory type:"objects" mode:mode
-				(ckb_Materials.checked): self.factory = NameplateFactory type:"materials" mode:mode nested:chk_nestedMats.checked
-				(ckb_Layers.checked): self.factory = NameplateFactory type:"layers" mode:mode
+				(ckb_Materials.checked): self.factory = NameplateFactory type:"materials" mode:mode nested:chk_nestedRefs.checked
+				(ckb_Layers.checked): self.factory = NameplateFactory type:"layers" mode:mode nested:chk_nestedRefs.checked
 				(ckb_Assets.checked): self.factory = NameplateFactory type:"assets" mode:mode
 				(ckb_Files.checked): self.factory = NameplateFactory type:"files" mode:mode dir:recentDir
 			)--end case
@@ -683,7 +685,7 @@ struct InteractiveRenamer
 			updateFactory()
 			updateNameplates()
 			updateList()
-			updateNestedMatsCheckbox()
+			updateNestedRefsCheckbox()
 			updateFileModePath()
 		)--end fn
 
@@ -912,7 +914,7 @@ struct InteractiveRenamer
 				setFocus ro -- Leave textbox, so that autocomplete suggestion list is closed
 		)--end on
 
-		on chk_nestedMats changed state do updateAll()
+		on chk_nestedRefs changed state do updateAll()
 
 		on ckb_preview changed state do updateList()
 		on ckb_sort changed state do updateList()

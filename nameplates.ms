@@ -156,6 +156,14 @@ struct NameplateFactory
 	nested = false, -- only for materials mode. if true, get nested materials
 	dir = "", -- only for files mode. get all files from this folder as refs
 
+	fn getNestedLayersRecursive layer arr& = (
+		appendIfUnique arr layer
+		local parent = layer.getParent()
+		if parent != undefined do (
+			getNestedLayersForObject parent arr
+		)
+	),
+
 	fn getNestedMaterialsRecursive theMat arr=
 	(
 		/***	Tries to collect all materials that are nested inside a base material recursively.
@@ -285,13 +293,26 @@ struct NameplateFactory
 		fn collectLayerRefs =
 		(
 			refs = #()
+
 			case mode of
 			(
-				"selection": for s in selection do appendIfUnique refs (LayerManager.getLayerFromName s.layer.name)
-				"scene": refs = for i=0 to (LayerManager.count-1) collect (LayerManager.getLayer i)
-			)--end case
-			refs -- return
-		)--end fn
+				"selection": (
+					for s in selection do (
+						if nested then (
+							getNestedLayersRecursive s.layer refs
+						)
+						else (
+							local layer = LayerManager.getLayerFromName s.layer.name
+							appendIfUnique refs layer
+						)
+					)
+				)
+				"scene": (
+					refs = for i = 0 to (LayerManager.count - 1) collect (LayerManager.getLayer i)
+				)
+			)
+			refs
+		)
 
 		fn collectAssetRefs =
 		(
