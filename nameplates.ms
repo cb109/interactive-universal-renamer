@@ -2,14 +2,14 @@ struct AbstractNameplate
 (
 	/**
 		Stores name-reference-correlation
-		and uses type-corresponding methods to 
+		and uses type-corresponding methods to
 		get/set reference name.
 	**/
-	id, 
-	name, 
-	newName, 
-	ref, 
-	fn getNameFromRef=(), 
+	id,
+	name,
+	newName,
+	ref,
+	fn getNameFromRef=(),
 	fn assignNameToRef=()
 )--end struct
 
@@ -25,7 +25,7 @@ struct ObjectNameplate
 		name = newName = ref.name
 	),
 
-	fn assignNameToRef = 
+	fn assignNameToRef =
 	(
 		ref.name = newName
 	)
@@ -43,7 +43,7 @@ struct MaterialNameplate
 		name = newName = ref.name
 	),
 
-	fn assignNameToRef = 
+	fn assignNameToRef =
 	(
 		ref.name = newName
 	)
@@ -61,7 +61,7 @@ struct LayerNameplate
 		name = newName = ref.name
 	),
 
-	fn assignNameToRef = 
+	fn assignNameToRef =
 	(
 		local layManClosed = false
 		if (LayerManager.isDialogOpen()) do -- if open, close to make changes committ
@@ -69,7 +69,7 @@ struct LayerNameplate
 			LayerManager.closeDialog()
 			layManClosed = true
 		)--end if
-		-- remember that layer names have to be unique or renaming is omitted 
+		-- remember that layer names have to be unique or renaming is omitted
 		ref.setName newName
 		if layManClosed do macros.run "Layers" "LayerManager" -- reopen (there is no .openDialog() so use this)
 	)
@@ -81,17 +81,27 @@ struct AssetNameplate
 	name = undefined,
 	newName = undefined,
 	ref = undefined,
-	
-	fn getNameFromRef = 
+
+	fn getNameFromRef =
 	(
 		name = newName = ref
-	), 
-	
-	fn assignNameToRef = 
+	),
+
+	fn assignNameToRef =
 	(
+		dialogVisible = ATSOps.visible
+		if not dialogVisible do
+			ATSOps.visible = True
+
 		ATSOps.ClearSelection()
 		ATSOps.SelectFiles #(name)
-		ATSOps.RetargetSelection newName
+		try
+			ATSOps.RetargetSelection newName
+		catch (
+			messageBox ("Could not rename asset: " + name) title:"Rename Failed"
+		)
+
+		ATSOps.visible = dialogVisible
 	)
 )--end struct
 
@@ -107,7 +117,7 @@ struct FileNameplate
 		name = newName = (getFileNameFile ref) + (getFilenameType ref)
 	),
 
-	fn assignNameToRef = 
+	fn assignNameToRef =
 	(
 		HiddenDOSCommand ("rename " + "\"" + ref + "\"" + " " + "\"" + newName + "\"") --quot marks are needed for paths with blank spaces
 	)
@@ -120,11 +130,11 @@ struct AbstractNameplateFactory
 		Creates Nameplate-Objects to store name-reference-correlations
 		and use the corresponding methods to get/set the reference name.
 	**/
-	type, 
-	mode, 
+	type,
+	mode,
 	refs,
-	nested, 
-	dir, 
+	nested,
+	dir,
 	-- Add helper functions here as needed,
 	fn collectRefs =
 	(
@@ -142,23 +152,31 @@ struct NameplateFactory
 	type = undefined, -- "objects", "materials", "layers", "assets", "files"
 	mode = undefined, -- "selection" or "scene"
 	refs = #(), -- node references
-	
+
 	nested = false, -- only for materials mode. if true, get nested materials
 	dir = "", -- only for files mode. get all files from this folder as refs
 
+	fn getNestedLayersRecursive layer arr& = (
+		appendIfUnique arr layer
+		local parent = layer.getParent()
+		if parent != undefined do (
+			getNestedLayersRecursive parent arr
+		)
+	),
+
 	fn getNestedMaterialsRecursive theMat arr=
-	(		
+	(
 		/***	Tries to collect all materials that are nested inside a base material recursively.
 			Supports an arbitrary number of materials that can have nested materials inside them
 			@param	theMat	The base material.
 			@param	arr	The array that all found materials are appended to.
 		***/
-		if theMat != undefined do -- may be undefined e.g. when back material slot of VRay2SidedMtl is empty 
+		if theMat != undefined do -- may be undefined e.g. when back material slot of VRay2SidedMtl is empty
 		(
 			appendIfUnique arr theMat -- collect this one
-		
+
 			case (classof theMat) of -- dig further if there is more to get
-			(		
+			(
 				-- Standard nested materials:
 				Multimaterial :
 				(
@@ -174,13 +192,13 @@ struct NameplateFactory
 				(
 					getNestedMaterialsRecursive theMat.originalMaterial arr
 					getNestedMaterialsRecursive theMat.bakedMaterial arr
-				)	
+				)
 				compositematerial :
 				(
 					getNestedMaterialsRecursive theMat.baseMaterial arr
-					for m in theMat.materiallist where m != undefined do 
+					for m in theMat.materiallist where m != undefined do
 						getNestedMaterialsRecursive m arr
-				)	
+				)
 				Shellac :
 				(
 					getNestedMaterialsRecursive theMat.shellacMtl1 arr
@@ -190,7 +208,7 @@ struct NameplateFactory
 				(
 					getNestedMaterialsRecursive theMat.topMaterial arr
 					getNestedMaterialsRecursive theMat.bottomMaterial arr
-				)			
+				)
 				DoubleSided :
 				(
 					getNestedMaterialsRecursive theMat.material1 arr
@@ -205,7 +223,7 @@ struct NameplateFactory
 				VRayBlendMtl :
 				(
 					getNestedMaterialsRecursive theMat.baseMtl arr
-					for m in theMat.coatMtl do 
+					for m in theMat.coatMtl do
 						getNestedMaterialsRecursive m arr
 				)
 				VRayMtlWrapper :
@@ -220,10 +238,10 @@ struct NameplateFactory
 					getNestedMaterialsRecursive theMat.refractMtl arr
 					getNestedMaterialsRecursive theMat.shadowMtl arr
 				)
-			)--end case	
+			)--end case
 		)--end if
 	)--end fn
-	,	
+	,
 	fn collectRefs =
 	(
 		refs = #()
@@ -232,7 +250,7 @@ struct NameplateFactory
 			refs = #()
 			case mode of
 			(
-				"selection": refs = for s in selection collect s					
+				"selection": refs = for s in selection collect s
 				"scene": refs = for o in objects collect o
 			)--end case
 			refs -- return
@@ -243,8 +261,8 @@ struct NameplateFactory
 			refs = #()
 			case mode of
 			(
-				"selection": 
-				(				
+				"selection":
+				(
 					for s in selection where s.material != undefined do
 					(
 						if nested then -- get all nested materials as well
@@ -258,7 +276,7 @@ struct NameplateFactory
 						)--end else
 					)--end for
 				)
-				"scene": 
+				"scene":
 				(
 					-- get all materials by class
 					local matClasses = material.classes
@@ -275,14 +293,27 @@ struct NameplateFactory
 		fn collectLayerRefs =
 		(
 			refs = #()
+
 			case mode of
 			(
-				"selection": for s in selection do appendIfUnique refs (LayerManager.getLayerFromName s.layer.name)
-				"scene": refs = for i=0 to (LayerManager.count-1) collect (LayerManager.getLayer i)
-			)--end case
-			refs -- return
-		)--end fn
-		
+				"selection": (
+					for s in selection do (
+						if nested then (
+							getNestedLayersRecursive s.layer refs
+						)
+						else (
+							local layer = LayerManager.getLayerFromName s.layer.name
+							appendIfUnique refs layer
+						)
+					)
+				)
+				"scene": (
+					refs = for i = 0 to (LayerManager.count - 1) collect (LayerManager.getLayer i)
+				)
+			)
+			refs
+		)
+
 		fn collectAssetRefs =
 		(
 			refs = #()
