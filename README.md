@@ -6,7 +6,7 @@ See an (older) demonstration video: https://vimeo.com/57767912
 
 ## How to install via .mzp
 
-The repository should include a pre-build `.mzp` file: Download and drag-and-drop it into your 3ds Max viewport to install the tool.
+The repository should include a `InteractiveRenamer_v2.20.mzp` file: Download and drag-and-drop it into your 3ds Max viewport to install the tool.
 
 ### How to build the .mzp
 
