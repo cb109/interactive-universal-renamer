@@ -1,5 +1,7 @@
 # Interactive Universal Renamer
 
+![](media/interactiveRenamer.jpg)
+
 This is a renaming script for 3ds Max with live preview and support for objects, layers, materials and files.
 
 See an (older) demonstration video: https://vimeo.com/57767912
