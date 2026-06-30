@@ -176,7 +176,16 @@ struct InteractiveRenamer
 						--if case fits for occ, replace that part of the original string
 						if (matchPattern temp pattern:("*" + searchFor + "*") ignoreCase:false) then
 						(
-							txt = replace txt sIdx searchFor.count replaceWith
+							-- Store the processed left part and continue on the remaining right side.
+							left = ""
+							for i = 1 to (sIdx - 1) do
+								left += txt[i]
+							left += replaceWith
+							append caseCheckFailedOccurences left
+							right = ""
+							for i = (sIdx + searchFor.count) to txt.count do
+								right += txt[i]
+							txt = right
 						)--end if
 						else -- cut string and replace txt with right part
 						(
@@ -194,7 +203,16 @@ struct InteractiveRenamer
 					)--end if
 					else -- no case check
 					(
-						txt = replace txt sIdx searchFor.count replaceWith
+						-- Store the processed left part and continue on the remaining right side.
+						left = ""
+						for i = 1 to (sIdx - 1) do
+							left += txt[i]
+						left += replaceWith
+						append caseCheckFailedOccurences left
+						right = ""
+						for i = (sIdx + searchFor.count) to txt.count do
+							right += txt[i]
+						txt = right
 					)--end else
 
 					sIdx = findString txt searchFor -- update index
